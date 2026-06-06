@@ -1,5 +1,5 @@
 ```markdown
-# PICUFLA — Final Build Prompts
+# PICUFLA 
 # IDE: Visual Studio Code + Claude Code Extension
 # Stack: React Native (Expo SDK 52) · Supabase · OpenAI Vision API
 # Author: PICUFLA Development Team
