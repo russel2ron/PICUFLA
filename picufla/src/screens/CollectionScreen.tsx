@@ -8,17 +8,15 @@ import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
 import { useAuthStore } from '../store/authStore';
 import { useCollectionStore, getFilteredPlants } from '../store/collectionStore';
 import { plantService } from '../services/plantService';
+import { cacheService } from '../services/cacheService';
 import { supabase } from '../services/supabase';
 import type { CollectionStackParamList, UserPlant } from '../types';
-
-const CACHE_KEY_PREFIX = '@picufla_collection_';
 type SortKey = 'newest' | 'oldest' | 'a-z' | 'z-a';
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'newest', label: 'Newest' },
@@ -46,6 +44,7 @@ export default function CollectionScreen({ navigation }: Props) {
   } = useCollectionStore();
 
   const [offline, setOffline] = React.useState(false);
+  const [lastSync, setLastSync] = React.useState<Date | null>(null);
   const [appState, setAppState] = React.useState(AppState.currentState);
 
   const filteredPlants = useMemo(
@@ -60,20 +59,23 @@ export default function CollectionScreen({ navigation }: Props) {
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
         setOffline(true);
-        const cached = await AsyncStorage.getItem(CACHE_KEY_PREFIX + user.id);
-        if (cached) {
-          setPlants(JSON.parse(cached));
-        }
+        const cached = await cacheService.getPlants(user.id);
+        setPlants(cached);
+        const syncDate = await cacheService.getLastSyncDate(user.id);
+        setLastSync(syncDate);
         return;
       }
       setOffline(false);
       const data = await plantService.getUserPlants(user.id);
       setPlants(data);
-      await AsyncStorage.setItem(CACHE_KEY_PREFIX + user.id, JSON.stringify(data));
+      await cacheService.savePlants(user.id, data);
+      setLastSync(new Date());
     } catch {
-      const cached = await AsyncStorage.getItem(CACHE_KEY_PREFIX + user.id);
-      if (cached) {
-        setPlants(JSON.parse(cached));
+      const cached = await cacheService.getPlants(user.id);
+      if (cached.length > 0) {
+        setPlants(cached);
+        const syncDate = await cacheService.getLastSyncDate(user.id);
+        setLastSync(syncDate);
       }
     } finally {
       setLoading(false);
@@ -197,7 +199,19 @@ export default function CollectionScreen({ navigation }: Props) {
       {offline && (
         <View style={styles.offlineBanner}>
           <View style={styles.offlineDot} />
-          <Text style={styles.offlineText}>Offline \u00b7 Showing cached plants</Text>
+          <Text style={styles.offlineText}>
+            Offline \u00b7 Last synced: {lastSync
+              ? (() => {
+                  const diffMs = Date.now() - lastSync.getTime();
+                  const diffMins = Math.floor(diffMs / 60000);
+                  if (diffMins < 1) return 'Just now';
+                  if (diffMins < 60) return `${diffMins}m ago`;
+                  const diffHours = Math.floor(diffMins / 60);
+                  if (diffHours < 24) return `${diffHours}h ago`;
+                  return lastSync.toLocaleDateString();
+                })()
+              : 'Never'}
+          </Text>
         </View>
       )}
 
