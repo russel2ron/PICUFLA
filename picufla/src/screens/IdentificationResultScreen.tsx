@@ -10,6 +10,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
 import { useAuthStore } from '../store/authStore';
 import { identificationService } from '../services/identificationService';
+import { plantService } from '../services/plantService';
+import { getErrorMessage } from '../utils/errorHandler';
+import * as Location from 'expo-location';
 import type { ScanStackParamList, IdentificationResult, PlantAlternative } from '../types';
 
 type Props = {
@@ -93,9 +96,48 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
     }
   };
 
-  const proceedSave = () => {
-    console.log('Save triggered');
-    setIsSaving(false);
+  const proceedSave = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const capturedImageUrl = await plantService.uploadPlantImage(user.id, capturedImageUri);
+      const plantId = await plantService.upsertPlantCatalog(activeResult);
+
+      let locationLat: number | null = null;
+      let locationLng: number | null = null;
+      let locationLabel: string | null = null;
+      try {
+        const locPermission = await Location.requestForegroundPermissionsAsync();
+        if (locPermission.granted) {
+          const pos = await Location.getCurrentPositionAsync({});
+          locationLat = pos.coords.latitude;
+          locationLng = pos.coords.longitude;
+          locationLabel = await plantService.getLocationLabel(locationLat, locationLng);
+        }
+      } catch {}
+
+      const newId = await plantService.saveUserPlant({
+        userId: user.id,
+        plantId,
+        capturedImageUrl,
+        confidenceScore: activeResult.confidence_score,
+        locationLat,
+        locationLng,
+        locationLabel,
+      });
+
+      const parentNav = navigation.getParent();
+      if (parentNav) {
+        (parentNav as any).navigate('CollectionTab', {
+          screen: 'PlantDetail',
+          params: { userPlantId: newId },
+        });
+      }
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!fontsLoaded) {

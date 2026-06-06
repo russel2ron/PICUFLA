@@ -28,6 +28,27 @@ export const identificationService = {
 
   async identifyPlant(imageUri: string): Promise<IdentificationResult> {
     const { base64, mimeType } = await this.compressImage(imageUri);
+    const body = JSON.stringify({ imageBase64: base64, mimeType });
+
+    if (Config.LOCAL_FUNCTION_URL) {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token ?? '';
+
+      const res = await fetch(`${Config.LOCAL_FUNCTION_URL}/identify-plant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? 'Identification failed.');
+      }
+      return (await res.json()) as IdentificationResult;
+    }
+
     const response = await supabase.functions.invoke('identify-plant', {
       body: { imageBase64: base64, mimeType },
     });
