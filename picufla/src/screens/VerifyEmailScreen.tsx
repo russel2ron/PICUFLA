@@ -1,15 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
-import { StackNavigationProp, StackScreenProps } from '@react-navigation/stack';
+import { StackScreenProps } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
 import { authService } from '../services/authService';
 import type { RootStackParamList } from '../types';
+
+const COOLDOWN_KEY = 'verifyEmailCooldownEnd';
 
 type Props = StackScreenProps<RootStackParamList, 'VerifyEmail'>;
 
@@ -26,15 +29,46 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
   const [canResend, setCanResend] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [message, setMessage] = useState('');
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Read persisted cooldown and set initial countdown
   useEffect(() => {
-    if (countdown <= 0) {
-      setCanResend(true);
-      return;
-    }
-    const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
-    return () => clearInterval(timer);
-  }, [countdown]);
+    initCooldown();
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const initCooldown = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(COOLDOWN_KEY);
+      if (stored) {
+        const end = parseInt(stored, 10);
+        const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+        if (remaining > 0) {
+          setCountdown(remaining);
+          startTimer(remaining);
+          return;
+        }
+      }
+    } catch {}
+    startTimer(60);
+  };
+
+  const startTimer = (initial: number) => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    let secs = initial;
+    setCanResend(false);
+    intervalRef.current = setInterval(() => {
+      secs -= 1;
+      setCountdown(secs);
+      if (secs <= 0) {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setCanResend(true);
+      }
+    }, 1000);
+  };
 
   if (!fontsLoaded) {
     return (
@@ -45,24 +79,35 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
   }
 
   const handleResend = async () => {
-    setCanResend(false);
-    setCountdown(60);
     setIsResending(true);
+    setMessage('');
     try {
       await authService.resendVerificationEmail(email);
-    } catch {}
-    setIsResending(false);
+      const end = Date.now() + 60000;
+      await AsyncStorage.setItem(COOLDOWN_KEY, String(end));
+      setMessage('Verification email sent!');
+      startTimer(60);
+    } catch (e: any) {
+      Alert.alert('Failed to Resend', e.message || 'Could not resend verification email.');
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const handleVerified = async () => {
     setIsVerifying(true);
+    setMessage('');
     try {
-      // Refresh the session to pick up the verified email
       const session = await authService.getSession();
       if (session?.user?.email_confirmed_at) {
-        // Session is verified — navigation will auto-redirect via useAuth
+        await AsyncStorage.removeItem(COOLDOWN_KEY);
+        navigation.replace('SetupProfile');
+        return;
       }
-    } catch {}
+      setMessage("Email not yet verified. Check your inbox and click the link, then try again.");
+    } catch {
+      setMessage("Could not check verification status. Try again.");
+    }
     setIsVerifying(false);
   };
 
@@ -83,7 +128,15 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
 
         <Text style={styles.hint}>
           Click the link in the email to verify your account, then come back here.
+          {'\n\n'}
+          Didn't see the email? Check your spam folder.
         </Text>
+
+        {message ? (
+          <View style={styles.successBox}>
+            <Text style={styles.successText}>{message}</Text>
+          </View>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.verifyButton, isVerifying ? styles.buttonDisabled : null]}
@@ -176,25 +229,27 @@ const styles = StyleSheet.create({
   verifyButton: {
     backgroundColor: Colors.green700,
     borderRadius: 14,
-    height: 50,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    paddingHorizontal: 32,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   verifyButtonText: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.textOnDark,
   },
   resendButton: {
     borderRadius: 14,
-    height: 50,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    paddingHorizontal: 32,
     borderWidth: 1,
     borderColor: Colors.stone,
     backgroundColor: Colors.card,
@@ -202,7 +257,22 @@ const styles = StyleSheet.create({
   },
   resendButtonText: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.green700,
+  },
+  successBox: {
+    backgroundColor: Colors.successBg,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.success,
+    marginBottom: 16,
+    width: '100%',
+  },
+  successText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: Colors.success,
+    textAlign: 'center',
   },
 });

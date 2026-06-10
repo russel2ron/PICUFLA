@@ -1,12 +1,11 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
-import { authService } from '../services/authService';
 import type { RootStackParamList } from '../types';
 
 type Props = {
@@ -21,6 +20,23 @@ export default function LoginScreen({ navigation }: Props) {
     DMSans_600SemiBold,
   });
 
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const float = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -12, duration: 2500, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2500, useNativeDriver: true }),
+      ]),
+    );
+    float.start();
+
+    Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
+
+    return () => float.stop();
+  }, []);
+
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
@@ -29,46 +45,33 @@ export default function LoginScreen({ navigation }: Props) {
     );
   }
 
-  const handleGoogleLogin = async () => {
-    try {
-      await authService.loginWithGoogle();
-    } catch {}
-  };
-
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.illustrationArea}>
+        <Animated.View style={[styles.illustrationArea, { transform: [{ translateY: floatAnim }] }]}>
           <Text style={styles.leafEmoji}>🌿</Text>
           <Text style={styles.appName}>PICUFLA</Text>
           <Text style={styles.tagline}>Discover & collect every plant around you.</Text>
-        </View>
+        </Animated.View>
 
-        <View style={styles.formCard}>
-          <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} activeOpacity={0.8}>
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
+        <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
           <TouchableOpacity
             style={styles.emailButton}
             onPress={() => navigation.navigate('EmailRegister')}
             activeOpacity={0.8}
           >
-            <Text style={styles.emailButtonText}>Continue with Email</Text>
+            <Text style={styles.emailButtonText}>Sign Up</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => navigation.navigate('EmailLogin')}>
-            <Text style={styles.loginLink}>
-              Already have an account? <Text style={styles.loginLinkBold}>Sign in</Text>
-            </Text>
+          <TouchableOpacity
+            style={styles.signInButton}
+            onPress={() => navigation.navigate('EmailLogin')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.signInButtonText}>Sign In</Text>
           </TouchableOpacity>
-        </View>
+
+        </Animated.View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -93,15 +96,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   illustrationArea: {
     backgroundColor: Colors.linen,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     alignItems: 'center',
-    paddingTop: 100,
-    paddingBottom: 48,
+    paddingTop: 60,
+    paddingBottom: 40,
     paddingHorizontal: 24,
   },
   leafEmoji: {
@@ -131,37 +134,6 @@ const styles = StyleSheet.create({
     marginTop: -24,
     ...Theme.shadow.sm,
   },
-  googleButton: {
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.stone,
-  },
-  googleButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.soil,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.stone,
-    opacity: 0.5,
-  },
-  dividerText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.bark,
-    marginHorizontal: 16,
-  },
   emailButton: {
     backgroundColor: Colors.green700,
     borderRadius: 14,
@@ -173,6 +145,21 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_600SemiBold',
     fontSize: 15,
     color: Colors.textOnDark,
+  },
+  signInButton: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.stone,
+    marginTop: 12,
+  },
+  signInButtonText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 15,
+    color: Colors.soil,
   },
   loginLink: {
     fontFamily: 'DMSans_400Regular',

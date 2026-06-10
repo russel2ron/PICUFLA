@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, ActivityIndicator,
+  Platform, ActivityIndicator, Keyboard, Pressable,
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
@@ -11,6 +11,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { z } from 'zod';
 import { Colors } from '../constants/colors';
 import { authService } from '../services/authService';
+import { loginRateLimiter } from '../services/loginRateLimiter';
 import type { RootStackParamList } from '../types';
 
 const loginSchema = z.object({
@@ -35,6 +36,25 @@ export default function EmailLoginScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const wait = await loginRateLimiter.getRemainingWaitSeconds();
+      if (wait > 0) setCooldownSeconds(wait);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const id = setInterval(() => {
+      setCooldownSeconds(prev => {
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [cooldownSeconds]);
 
   if (!fontsLoaded) {
     return (
@@ -45,6 +65,8 @@ export default function EmailLoginScreen({ navigation }: Props) {
   }
 
   const handleLogin = async () => {
+    Keyboard.dismiss();
+    if (cooldownSeconds > 0) return;
     setError('');
 
     const result = loginSchema.safeParse({ email, password });
@@ -53,11 +75,21 @@ export default function EmailLoginScreen({ navigation }: Props) {
       return;
     }
 
+    const remaining = await loginRateLimiter.getRemainingWaitSeconds();
+    if (remaining > 0) {
+      setCooldownSeconds(remaining);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await authService.loginWithEmail(email, password);
+      await loginRateLimiter.recordSuccess();
     } catch (e: any) {
       setError('Incorrect email or password');
+      await loginRateLimiter.recordFailure();
+      const wait = await loginRateLimiter.getRemainingWaitSeconds();
+      if (wait > 0) setCooldownSeconds(wait);
     } finally {
       setIsSubmitting(false);
     }
@@ -69,71 +101,84 @@ export default function EmailLoginScreen({ navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="arrow-left" size={22} color={Colors.soil} />
-        </TouchableOpacity>
+        <Pressable onPress={Keyboard.dismiss}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Feather name="arrow-left" size={22} color={Colors.soil} />
+          </TouchableOpacity>
 
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to your account</Text>
+          <Text style={styles.title}>Welcome!</Text>
+          <Text style={styles.subtitle}>Sign in to your account</Text>
 
-        <View style={styles.form}>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder="you@example.com"
-              placeholderTextColor={Colors.textDisabled}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
+          <View style={styles.form}>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Email</Text>
               <TextInput
-                style={[styles.input, styles.passwordInput, error ? styles.inputError : null]}
-                placeholder="Enter your password"
+                style={[styles.input, error ? styles.inputError : null]}
+                placeholder="you@example.com"
                 placeholderTextColor={Colors.textDisabled}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
-              </TouchableOpacity>
             </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput, error ? styles.inputError : null]}
+                  placeholder="Enter your password"
+                  placeholderTextColor={Colors.textDisabled}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotLink}>
+              <Text style={styles.forgotLinkText}>Forgot password?</Text>
+            </TouchableOpacity>
+
+            {cooldownSeconds > 0 ? (
+              <View style={styles.cooldownBox}>
+                <Feather name="clock" size={14} color={Colors.terra} />
+                <Text style={styles.cooldownText}>Too many attempts. Try again in {cooldownSeconds}s</Text>
+              </View>
+            ) : null}
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.submitButton, (isSubmitting || cooldownSeconds > 0) ? styles.submitButtonDisabled : null]}
+              onPress={handleLogin}
+              disabled={isSubmitting || cooldownSeconds > 0}
+              activeOpacity={0.8}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={Colors.textOnDark} />
+              ) : (
+                <Text style={styles.submitButtonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => navigation.navigate('EmailRegister')}>
+              <Text style={styles.switchLink}>
+                Don't have an account? <Text style={styles.switchLinkBold}>Create one</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            style={[styles.submitButton, isSubmitting ? styles.submitButtonDisabled : null]}
-            onPress={handleLogin}
-            disabled={isSubmitting}
-            activeOpacity={0.8}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={Colors.textOnDark} />
-            ) : (
-              <Text style={styles.submitButtonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => navigation.navigate('EmailRegister')}>
-            <Text style={styles.switchLink}>
-              Don't have an account? <Text style={styles.switchLinkBold}>Create one</Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -214,6 +259,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
   },
+  cooldownBox: {
+    backgroundColor: Colors.terraLight,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.terra,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cooldownText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: Colors.terra,
+    flex: 1,
+  },
   errorBox: {
     backgroundColor: Colors.errorBg,
     borderRadius: 10,
@@ -242,6 +303,16 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_600SemiBold',
     fontSize: 15,
     color: Colors.textOnDark,
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: -12,
+    marginBottom: 8,
+  },
+  forgotLinkText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: Colors.green700,
   },
   switchLink: {
     fontFamily: 'DMSans_400Regular',

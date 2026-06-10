@@ -8,14 +8,14 @@ export const identificationService = {
     const result = await manipulateAsync(
       uri,
       [{ resize: { width: 1024 } }],
-      { compress: 0.8, format: SaveFormat.JPEG, base64: true }
+      { compress: 1.0, format: SaveFormat.JPEG, base64: true }
     );
     const size = (result.base64!.length * 3) / 4;
     if (size > Config.MAX_IMAGE_SIZE_BYTES) {
       const result2 = await manipulateAsync(
         uri,
         [{ resize: { width: 800 } }],
-        { compress: 0.6, format: SaveFormat.JPEG, base64: true }
+        { compress: 1.0, format: SaveFormat.JPEG, base64: true }
       );
       const size2 = (result2.base64!.length * 3) / 4;
       if (size2 > Config.MAX_IMAGE_SIZE_BYTES) {
@@ -53,7 +53,10 @@ export const identificationService = {
       body: { imageBase64: base64, mimeType },
     });
     if (response.error) {
-      throw new Error(response.error.message ?? 'Identification failed.');
+      throw new Error(
+        (typeof response.error === 'string' ? response.error : response.error.message)
+        ?? 'Identification service unavailable. Make sure the Edge Function is deployed and the OpenAI key is set.'
+      );
     }
     return response.data as IdentificationResult;
   },

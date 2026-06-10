@@ -2,7 +2,7 @@ export const AUTH_ERRORS: Record<string, string> = {
   'invalid_credentials':        'Incorrect email or password.',
   'email_not_confirmed':        'Please verify your email before logging in.',
   'user_already_exists':        'An account with this email already exists.',
-  'weak_password':              'Password must be at least 8 characters with 1 number.',
+  'weak_password':              'Password must be at least 8 characters with uppercase, lowercase, and a number.',
   'over_email_send_rate_limit': 'Too many attempts. Please wait a few minutes.',
   'network_error':              'No internet connection. Please try again.',
   'PGRST301':                   'Session expired. Please log in again.',
@@ -13,7 +13,7 @@ export const AUTH_ERRORS: Record<string, string> = {
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     const code = (error as any)?.code ?? (error as any)?.status ?? '';
-    return AUTH_ERRORS[code] ?? AUTH_ERRORS[error.message] ?? 'Something went wrong. Please try again.';
+    return AUTH_ERRORS[code] ?? AUTH_ERRORS[error.message] ?? (error.message || 'Something went wrong. Please try again.');
   }
   return 'Something went wrong. Please try again.';
 }

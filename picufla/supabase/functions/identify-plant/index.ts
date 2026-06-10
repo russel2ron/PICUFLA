@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const RATE_LIMIT_PER_HOUR = 10
+const RATE_LIMIT_PER_HOUR = 5
 
 serve(async (req) => {
   try {
@@ -51,7 +51,7 @@ serve(async (req) => {
 
       if (windowStart > oneHourAgo && rateLimit.call_count >= RATE_LIMIT_PER_HOUR) {
         return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. You can identify up to 10 plants per hour.' }),
+          JSON.stringify({ error: 'Rate limit exceeded. You can identify up to 5 plants per hour.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
       }
@@ -117,7 +117,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: JSON.stringify({D
         model: 'gpt-4o',
         max_tokens: 800,
         messages: [

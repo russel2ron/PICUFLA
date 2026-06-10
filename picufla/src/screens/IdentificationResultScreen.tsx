@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator, Alert,
+  Animated, PanResponder, Dimensions, TextInput,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
@@ -15,9 +16,13 @@ import { getErrorMessage } from '../utils/errorHandler';
 import * as Location from 'expo-location';
 import type { ScanStackParamList, IdentificationResult, PlantAlternative } from '../types';
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const MIN_IMAGE_HEIGHT = 80;
+const MAX_IMAGE_HEIGHT = SCREEN_HEIGHT * 0.55;
+
 type Props = {
   navigation: StackNavigationProp<ScanStackParamList, 'IdentificationResult'>;
-  route: { params: { result: IdentificationResult; capturedImageUri: string } };
+  route: { params: { result: IdentificationResult; capturedImageUri: string; imageSource?: 'camera' | 'gallery' } };
 };
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
@@ -46,10 +51,58 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
     DMSans_600SemiBold,
   });
 
-  const { result, capturedImageUri } = route.params;
+  const { result, capturedImageUri, imageSource } = route.params;
   const user = useAuthStore((s) => s.user);
   const [selectedAlternative, setSelectedAlternative] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [displayLocation, setDisplayLocation] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (imageSource === 'gallery') return;
+    (async () => {
+      try {
+        const locPermission = await Location.requestForegroundPermissionsAsync();
+        if (locPermission.granted) {
+          const pos = await Location.getCurrentPositionAsync({});
+          const label = await plantService.getLocationLabel(pos.coords.latitude, pos.coords.longitude);
+          setDisplayLocation(label);
+        }
+      } catch {}
+    })();
+  }, [imageSource]);
+
+  const imageHeight = useRef(new Animated.Value(220)).current;
+  const lastImageHeight = useRef(220);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gesture) => {
+        const newHeight = lastImageHeight.current + gesture.dy;
+        const clamped = Math.max(MIN_IMAGE_HEIGHT, Math.min(MAX_IMAGE_HEIGHT, newHeight));
+        imageHeight.setValue(clamped);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        const proposed = lastImageHeight.current + gesture.dy;
+        let snap: number;
+        if (proposed < 140) {
+          snap = MIN_IMAGE_HEIGHT;
+        } else if (proposed > 280) {
+          snap = MAX_IMAGE_HEIGHT;
+        } else {
+          snap = 220;
+        }
+        Animated.spring(imageHeight, {
+          toValue: snap,
+          useNativeDriver: false,
+          friction: 8,
+        }).start();
+        lastImageHeight.current = snap;
+      },
+    })
+  ).current;
 
   const identified = (result as any).identified !== undefined
     ? (result as any).identified
@@ -106,15 +159,17 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
       let locationLat: number | null = null;
       let locationLng: number | null = null;
       let locationLabel: string | null = null;
-      try {
-        const locPermission = await Location.requestForegroundPermissionsAsync();
-        if (locPermission.granted) {
-          const pos = await Location.getCurrentPositionAsync({});
-          locationLat = pos.coords.latitude;
-          locationLng = pos.coords.longitude;
-          locationLabel = await plantService.getLocationLabel(locationLat, locationLng);
-        }
-      } catch {}
+      if (imageSource !== 'gallery') {
+        try {
+          const locPermission = await Location.requestForegroundPermissionsAsync();
+          if (locPermission.granted) {
+            const pos = await Location.getCurrentPositionAsync({});
+            locationLat = pos.coords.latitude;
+            locationLng = pos.coords.longitude;
+            locationLabel = await plantService.getLocationLabel(locationLat, locationLng);
+          }
+        } catch {}
+      }
 
       const newId = await plantService.saveUserPlant({
         userId: user.id,
@@ -124,15 +179,10 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
         locationLat,
         locationLng,
         locationLabel,
+        notes: notes.trim() || null,
       });
 
-      const parentNav = navigation.getParent();
-      if (parentNav) {
-        (parentNav as any).navigate('CollectionTab', {
-          screen: 'PlantDetail',
-          params: { userPlantId: newId },
-        });
-      }
+      navigation.reset({ index: 0, routes: [{ name: 'Scan' }] });
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error));
     } finally {
@@ -150,8 +200,8 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-        <View style={styles.heroSection}>
+      <View style={styles.heroWrapper}>
+        <Animated.View style={[styles.heroSection, { height: imageHeight }]}>
           <Image source={{ uri: capturedImageUri }} style={styles.heroImage} />
           {!identified && (
             <View style={styles.notIdentifiedOverlay}>
@@ -159,90 +209,130 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             </View>
           )}
           {identified && <ConfidenceBadge confidence={activeResult.confidence_score} />}
-          {!identified && (
-            <View style={styles.notIdentifiedPanel}>
-              <Text style={styles.notIdentifiedPanelText}>
-                We could not identify this plant. Try taking another photo with better lighting.
-              </Text>
-            </View>
-          )}
-        </View>
-
+        </Animated.View>
         {identified && (
-          <View style={styles.resultBody}>
-            <Text style={styles.commonName}>{activeResult.common_name}</Text>
-            <Text style={styles.scientificName}>{activeResult.scientific_name}</Text>
-
-            <View style={styles.tagPillsRow}>
-              <View style={styles.tagPill}>
-                <Text style={styles.tagPillText}>{activeResult.care_watering}</Text>
-              </View>
-              <View style={styles.tagPill}>
-                <Text style={styles.tagPillText}>{activeResult.care_sunlight}</Text>
-              </View>
-            </View>
-
-            {activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && (
-              <View style={styles.alternativesSection}>
-                <Text style={styles.alternativesLabel}>Not confident? Pick the best match:</Text>
-                <View style={styles.alternativesList}>
-                  <TouchableOpacity
-                    style={[styles.alternativeRow, selectedAlternative === result.common_name && styles.alternativeRowSelected]}
-                    onPress={() => setSelectedAlternative(result.common_name)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.radioCircle, selectedAlternative === result.common_name && styles.radioCircleSelected]} />
-                    <View style={styles.alternativeInfo}>
-                      <Text style={styles.alternativeCommonName}>{result.common_name}</Text>
-                      <Text style={styles.alternativeScientificName}>{result.scientific_name}</Text>
-                    </View>
-                    <Text style={styles.alternativeConfidence}>{Math.round(result.confidence_score * 100)}%</Text>
-                  </TouchableOpacity>
-                  {result.alternatives.map((alt) => (
-                    <TouchableOpacity
-                      key={alt.scientific_name}
-                      style={[styles.alternativeRow, selectedAlternative === alt.common_name && styles.alternativeRowSelected]}
-                      onPress={() => setSelectedAlternative(alt.common_name)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.radioCircle, selectedAlternative === alt.common_name && styles.radioCircleSelected]} />
-                      <View style={styles.alternativeInfo}>
-                        <Text style={styles.alternativeCommonName}>{alt.common_name}</Text>
-                        <Text style={styles.alternativeScientificName}>{alt.scientific_name}</Text>
-                      </View>
-                      <Text style={styles.alternativeConfidence}>{Math.round(alt.confidence_score * 100)}%</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            <Text style={styles.sectionLabel}>Care Guide</Text>
-            <View style={styles.careCardsGrid}>
-              <View style={styles.careCard}>
-                <Feather name="droplet" size={20} color={Colors.green600} />
-                <Text style={styles.careCardLabel}>WATERING</Text>
-                <Text style={styles.careCardValue}>{activeResult.care_watering}</Text>
-              </View>
-              <View style={styles.careCard}>
-                <Feather name="sun" size={20} color={Colors.terra} />
-                <Text style={styles.careCardLabel}>SUNLIGHT</Text>
-                <Text style={styles.careCardValue}>{activeResult.care_sunlight}</Text>
-              </View>
-              <View style={styles.careCard}>
-                <Feather name="layers" size={20} color={Colors.bark} />
-                <Text style={styles.careCardLabel}>SOIL</Text>
-                <Text style={styles.careCardValue}>{activeResult.care_soil}</Text>
-              </View>
-            </View>
-
-            <View style={styles.locationRow}>
-              <Feather name="map-pin" size={14} color={Colors.green600} />
-              <Text style={styles.locationText}>Location not recorded</Text>
+          <View style={styles.dragHandle} {...panResponder.panHandlers}>
+            <View style={styles.dragOval}>
+              <Text style={styles.dragDots}>⋮</Text>
             </View>
           </View>
         )}
-      </ScrollView>
+      </View>
+      {!identified && (
+        <View style={styles.notIdentifiedPanel}>
+          <Text style={styles.notIdentifiedPanelText}>
+            We could not identify this plant. Try taking another photo with better lighting.
+          </Text>
+          <TouchableOpacity
+            style={styles.retakeButton}
+            onPress={() => navigation.navigate('Scan')}
+            activeOpacity={0.8}
+          >
+            <Feather name="camera" size={18} color={Colors.textOnDark} />
+            <Text style={styles.retakeButtonText}>Retake Photo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {identified && (
+        <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} bounces={false}>
+          <Text style={styles.commonName}>{activeResult.common_name}</Text>
+          <Text style={styles.scientificName}>{activeResult.scientific_name}</Text>
+
+          <View style={styles.tagPillsRow}>
+            <View style={styles.tagPill}>
+              <Text style={styles.tagPillText}>{activeResult.care_watering}</Text>
+            </View>
+            <View style={styles.tagPill}>
+              <Text style={styles.tagPillText}>{activeResult.care_sunlight}</Text>
+            </View>
+          </View>
+
+          {activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && (
+            <View style={styles.alternativesSection}>
+              <Text style={styles.alternativesLabel}>Not confident? Pick the best match:</Text>
+              <View style={styles.alternativesList}>
+                <TouchableOpacity
+                  style={[styles.alternativeRow, selectedAlternative === result.common_name && styles.alternativeRowSelected]}
+                  onPress={() => setSelectedAlternative(result.common_name)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.radioCircle, selectedAlternative === result.common_name && styles.radioCircleSelected]} />
+                  <View style={styles.alternativeInfo}>
+                    <Text style={styles.alternativeCommonName}>{result.common_name}</Text>
+                    <Text style={styles.alternativeScientificName}>{result.scientific_name}</Text>
+                  </View>
+                  <Text style={styles.alternativeConfidence}>{Math.round(result.confidence_score * 100)}%</Text>
+                </TouchableOpacity>
+                {result.alternatives.map((alt) => (
+                  <TouchableOpacity
+                    key={alt.scientific_name}
+                    style={[styles.alternativeRow, selectedAlternative === alt.common_name && styles.alternativeRowSelected]}
+                    onPress={() => setSelectedAlternative(alt.common_name)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.radioCircle, selectedAlternative === alt.common_name && styles.radioCircleSelected]} />
+                    <View style={styles.alternativeInfo}>
+                      <Text style={styles.alternativeCommonName}>{alt.common_name}</Text>
+                      <Text style={styles.alternativeScientificName}>{alt.scientific_name}</Text>
+                    </View>
+                    <Text style={styles.alternativeConfidence}>{Math.round(alt.confidence_score * 100)}%</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <Text style={styles.sectionLabel}>Care Guide</Text>
+          <View style={styles.careBook}>
+            <View style={styles.careBookRow}>
+              <View style={styles.careBookIcon}>
+                <Feather name="droplet" size={16} color={Colors.green600} />
+              </View>
+              <View style={styles.careBookContent}>
+                <Text style={styles.careBookLabel}>Watering</Text>
+                <Text style={styles.careBookValue}>{activeResult.care_watering}</Text>
+              </View>
+            </View>
+            <View style={styles.careBookDivider} />
+            <View style={styles.careBookRow}>
+              <View style={styles.careBookIcon}>
+                <Feather name="sun" size={16} color={Colors.terra} />
+              </View>
+              <View style={styles.careBookContent}>
+                <Text style={styles.careBookLabel}>Sunlight</Text>
+                <Text style={styles.careBookValue}>{activeResult.care_sunlight}</Text>
+              </View>
+            </View>
+            <View style={styles.careBookDivider} />
+            <View style={styles.careBookRow}>
+              <View style={styles.careBookIcon}>
+                <Feather name="layers" size={16} color={Colors.bark} />
+              </View>
+              <View style={styles.careBookContent}>
+                <Text style={styles.careBookLabel}>Soil</Text>
+                <Text style={styles.careBookValue}>{activeResult.care_soil}</Text>
+              </View>
+            </View>
+          </View>
+
+          <Text style={styles.sectionLabel}>Notes</Text>
+          <TextInput
+            style={styles.notesInput}
+            placeholder="Add notes about this plant…"
+            placeholderTextColor={Colors.stone}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            maxLength={500}
+          />
+
+          <View style={styles.locationRow}>
+            <Feather name="map-pin" size={14} color={Colors.green600} />
+            <Text style={styles.locationText}>{displayLocation || 'Location not recorded'}</Text>
+          </View>
+        </ScrollView>
+      )}
 
       {identified && (
         <View style={styles.bottomButtons}>
@@ -287,16 +377,58 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.soil,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 100,
+  heroWrapper: {
+    position: 'relative',
+    zIndex: 5,
   },
   heroSection: {
     position: 'relative',
+    overflow: 'hidden',
   },
   heroImage: {
     width: '100%',
-    height: 220,
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  dragHandle: {
+    position: 'absolute',
+    bottom: -16,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+    height: 40,
+    justifyContent: 'flex-start',
+  },
+  dragOval: {
+    width: 52,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.linen,
+    borderWidth: 1.5,
+    borderColor: Colors.stone,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  dragDots: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 16,
+    color: Colors.bark,
+    lineHeight: 18,
+  },
+  detailsScroll: {
+    flex: 1,
+    backgroundColor: Colors.linen,
+  },
+  detailsContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 120,
   },
   notIdentifiedOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -312,20 +444,39 @@ const styles = StyleSheet.create({
   },
   notIdentifiedPanel: {
     backgroundColor: Colors.linen,
-    padding: 16,
+    padding: 24,
     marginHorizontal: 16,
-    marginTop: -16,
+    marginTop: 16,
     borderRadius: 16,
+    alignItems: 'center',
+    gap: 20,
   },
   notIdentifiedPanelText: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.bark,
     textAlign: 'center',
+    lineHeight: 24,
+  },
+  retakeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.green700,
+    borderRadius: 14,
+    height: 50,
+    paddingHorizontal: 28,
+    gap: 8,
+    width: '100%',
+  },
+  retakeButtonText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 16,
+    color: Colors.textOnDark,
   },
   confidenceBadge: {
     position: 'absolute',
-    top: 12,
+    top: 48,
     right: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -333,29 +484,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
   confidenceText: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 12,
-  },
-  resultBody: {
-    backgroundColor: Colors.linen,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
+    fontSize: 13,
   },
   commonName: {
     fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 28,
+    fontSize: 30,
     color: Colors.soil,
     marginBottom: 4,
   },
   scientificName: {
     fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 16,
+    fontSize: 18,
     fontStyle: 'italic',
     color: Colors.bark,
     marginBottom: 16,
@@ -373,7 +520,7 @@ const styles = StyleSheet.create({
   },
   tagPillText: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.lavender,
   },
   alternativesSection: {
@@ -381,7 +528,7 @@ const styles = StyleSheet.create({
   },
   alternativesLabel: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.bark,
     marginBottom: 10,
   },
@@ -418,54 +565,86 @@ const styles = StyleSheet.create({
   },
   alternativeCommonName: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.soil,
   },
   alternativeScientificName: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 11,
+    fontSize: 12,
     fontStyle: 'italic',
     color: Colors.bark,
   },
   alternativeConfidence: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 12,
+    fontSize: 13,
     color: Colors.green700,
   },
   sectionLabel: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.bark,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
   },
-  careCardsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  careCard: {
-    flex: 1,
-    backgroundColor: Colors.linen,
+  careBook: {
+    backgroundColor: Colors.card,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.stone,
-    borderRadius: 10,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  careBookRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    gap: 4,
+    paddingHorizontal: 16,
+    gap: 14,
   },
-  careCardLabel: {
+  careBookIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.parchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  careBookContent: {
+    flex: 1,
+  },
+  careBookLabel: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 9.5,
+    fontSize: 12,
     color: Colors.bark,
     textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 2,
   },
-  careCardValue: {
+  careBookValue: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 12,
+    fontSize: 15,
     color: Colors.soil,
-    textAlign: 'center',
+    lineHeight: 20,
+  },
+  careBookDivider: {
+    height: 1,
+    backgroundColor: Colors.stone + '60',
+    marginHorizontal: 16,
+  },
+  notesInput: {
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.stone,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 14,
+    color: Colors.soil,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 24,
   },
   locationRow: {
     flexDirection: 'row',
@@ -474,7 +653,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.bark,
   },
   bottomButtons: {
@@ -502,7 +681,7 @@ const styles = StyleSheet.create({
   },
   bottomRetakeText: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.soil,
   },
   bottomSaveButton: {
@@ -518,7 +697,7 @@ const styles = StyleSheet.create({
   },
   bottomSaveText: {
     fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.textOnDark,
   },
 });

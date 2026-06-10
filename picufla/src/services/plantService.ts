@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import * as Location from 'expo-location';
 import { v4 as uuidv4 } from 'uuid';
@@ -9,7 +9,11 @@ import type { IdentificationResult, UserPlant } from '../types';
 export const plantService = {
   async uploadPlantImage(userId: string, imageUri: string): Promise<string> {
     const path = `${userId}/${uuidv4()}.jpg`;
-    const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' });
+    const file = new File(imageUri);
+    if (file.size > 15 * 1024 * 1024) {
+      throw new Error('Image must be under 15MB.');
+    }
+    const base64 = await file.base64();
     const { error } = await supabase.storage
       .from('plant-images')
       .upload(path, decode(base64), { contentType: 'image/jpeg', upsert: false });
@@ -63,6 +67,7 @@ export const plantService = {
     locationLat: number | null;
     locationLng: number | null;
     locationLabel: string | null;
+    notes?: string | null;
   }): Promise<string> {
     const { data, error } = await supabase
       .from('user_plants')
@@ -74,6 +79,7 @@ export const plantService = {
         location_lat: params.locationLat,
         location_lng: params.locationLng,
         location_label: params.locationLabel,
+        notes: params.notes || null,
         discovered_at: new Date().toISOString(),
         is_favorite: false,
         tags: [],

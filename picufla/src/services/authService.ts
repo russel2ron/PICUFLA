@@ -1,6 +1,8 @@
+import { File } from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from './supabase';
 import { getErrorMessage } from '../utils/errorHandler';
-import type { AppUser } from '../types';
+import type { AppUser, Gender } from '../types';
 
 export const authService = {
 
@@ -8,9 +10,7 @@ export const authService = {
     const { error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: {
-        emailRedirectTo: undefined,
-      },
+      options: {},
     });
     if (error) throw new Error(getErrorMessage(error));
   },
@@ -21,19 +21,21 @@ export const authService = {
       password,
     });
     if (error) throw new Error(getErrorMessage(error));
-    if (!data.user?.email_confirmed_at) {
-      await supabase.auth.signOut();
-      throw new Error('Please verify your email before logging in.');
-    }
     await authService.updateLastLogin(data.user.id);
   },
 
-  async loginWithGoogle(): Promise<void> {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: 'picufla://auth/callback',
-      },
+  async sendOtp(email: string): Promise<void> {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+    });
+    if (error) throw new Error(getErrorMessage(error));
+  },
+
+  async verifyOtp(email: string, token: string): Promise<void> {
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token,
+      type: 'email',
     });
     if (error) throw new Error(getErrorMessage(error));
   },
@@ -81,5 +83,45 @@ export const authService = {
       password,
     });
     if (error) throw new Error('Re-authentication failed. Incorrect password.');
+  },
+
+  async updateProfile(userId: string, updates: {
+    display_name?: string;
+    photo_url?: string | null;
+    gender?: Gender | null;
+    bio?: string | null;
+    setup_complete?: boolean;
+  }): Promise<void> {
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId);
+    if (error) throw new Error(getErrorMessage(error));
+  },
+
+  async changePassword(newPassword: string): Promise<void> {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw new Error(getErrorMessage(error));
+  },
+
+  async uploadProfilePhoto(userId: string, uri: string): Promise<string> {
+    const fileName = `${userId}/profile_${Date.now()}.jpg`;
+    const file = new File(uri);
+    if (file.size > 15 * 1024 * 1024) {
+      throw new Error('Image must be under 15MB.');
+    }
+    const base64 = await file.base64();
+    const { error: uploadError } = await supabase.storage
+      .from('plant-images')
+      .upload(fileName, decode(base64), { contentType: 'image/jpeg' });
+    if (uploadError) throw new Error(getErrorMessage(uploadError));
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('plant-images')
+      .createSignedUrl(fileName, 604800);
+    if (signedError || !signedData) {
+      throw new Error(getErrorMessage(signedError ?? new Error('Could not create image URL')));
+    }
+    return signedData.signedUrl;
   },
 };

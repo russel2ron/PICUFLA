@@ -1,36 +1,22 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Keyboard, Pressable,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  ScrollView, KeyboardAvoidingView, Platform, Keyboard, Pressable,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
-import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { z } from 'zod';
 import { Colors } from '../constants/colors';
 import { authService } from '../services/authService';
 import type { RootStackParamList } from '../types';
 
-const registerSchema = z.object({
-  email: z.string().email('Enter a valid email address'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/\d/, 'Password must include at least one number')
-    .regex(/[a-z]/, 'Password must include at least one lowercase letter')
-    .regex(/[A-Z]/, 'Password must include at least one uppercase letter'),
-  confirmPassword: z.string(),
-}).refine(d => d.password === d.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
-
 type Props = {
-  navigation: StackNavigationProp<RootStackParamList, 'EmailRegister'>;
+  navigation: StackNavigationProp<RootStackParamList, 'ChangePassword'>;
 };
 
-export default function EmailRegisterScreen({ navigation }: Props) {
+export default function ChangePasswordScreen({ navigation }: Props) {
   const [fontsLoaded] = useFonts({
     DMSerifDisplay_400Regular,
     DMSans_400Regular,
@@ -38,14 +24,13 @@ export default function EmailRegisterScreen({ navigation }: Props) {
     DMSans_600SemiBold,
   });
 
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitError, setSubmitError] = useState('');
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDone, setIsDone] = useState(false);
 
   if (!fontsLoaded) {
     return (
@@ -55,31 +40,64 @@ export default function EmailRegisterScreen({ navigation }: Props) {
     );
   }
 
-  const handleRegister = async () => {
+  const handleChangePassword = async () => {
     Keyboard.dismiss();
-    setErrors({});
-    setSubmitError('');
+    setError('');
 
-    const result = registerSchema.safeParse({ email, password, confirmPassword });
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of result.error.issues) {
-        const path = issue.path[0] as string;
-        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
-      }
-      setErrors(fieldErrors);
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (!/\d/.test(password)) {
+      setError('Password must include at least one number.');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('Password must include at least one lowercase letter.');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('Password must include at least one uppercase letter.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await authService.registerWithEmail(email, password);
+      await authService.changePassword(password);
+      setIsDone(true);
+      await authService.logout();
+      navigation.replace('EmailLogin');
     } catch (e: any) {
-      setSubmitError(e.message || 'Something went wrong. Please try again.');
+      setError(e.message || 'Could not change password.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (isDone) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.doneContent}>
+          <View style={styles.iconCircle}>
+            <Feather name="check" size={32} color={Colors.green700} />
+          </View>
+          <Text style={styles.title}>Password Changed</Text>
+          <Text style={styles.body}>Your password has been updated. Sign in with your new password.</Text>
+          <TouchableOpacity
+            style={styles.sendButton}
+            onPress={() => navigation.replace('EmailLogin')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.sendButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -92,30 +110,19 @@ export default function EmailRegisterScreen({ navigation }: Props) {
             <Feather name="arrow-left" size={22} color={Colors.soil} />
           </TouchableOpacity>
 
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Enter your details to get started</Text>
+          <View style={styles.iconCircle}>
+            <Feather name="lock" size={28} color={Colors.green700} />
+          </View>
+
+          <Text style={styles.title}>Create New Password</Text>
+          <Text style={styles.subtitle}>Choose a strong password for your account.</Text>
 
           <View style={styles.form}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, errors.email ? styles.inputError : null]}
-                placeholder="you@example.com"
-                placeholderTextColor={Colors.textDisabled}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-              {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>New Password</Text>
               <View style={styles.passwordRow}>
                 <TextInput
-                  style={[styles.input, styles.passwordInput, errors.password ? styles.inputError : null]}
+                  style={[styles.input, styles.passwordInput]}
                   placeholder="Min 8 chars: uppercase, lowercase & number"
                   placeholderTextColor={Colors.textDisabled}
                   value={password}
@@ -127,14 +134,13 @@ export default function EmailRegisterScreen({ navigation }: Props) {
                   <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
                 </TouchableOpacity>
               </View>
-              {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
             </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Confirm Password</Text>
               <View style={styles.passwordRow}>
                 <TextInput
-                  style={[styles.input, styles.passwordInput, errors.confirmPassword ? styles.inputError : null]}
+                  style={[styles.input, styles.passwordInput]}
                   placeholder="Re-enter your password"
                   placeholderTextColor={Colors.textDisabled}
                   value={confirmPassword}
@@ -146,25 +152,25 @@ export default function EmailRegisterScreen({ navigation }: Props) {
                   <Feather name={showConfirm ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
                 </TouchableOpacity>
               </View>
-              {errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
             </View>
 
-            {submitError ? (
-              <View style={styles.submitErrorBox}>
-                <Text style={styles.submitErrorText}>{submitError}</Text>
+            {error ? (
+              <View style={styles.errorBox}>
+                <Feather name="alert-circle" size={14} color={Colors.error} />
+                <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
             <TouchableOpacity
-              style={[styles.submitButton, isSubmitting ? styles.submitButtonDisabled : null]}
-              onPress={handleRegister}
+              style={[styles.sendButton, isSubmitting ? styles.sendButtonDisabled : null]}
+              onPress={handleChangePassword}
               disabled={isSubmitting}
               activeOpacity={0.8}
             >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color={Colors.textOnDark} />
               ) : (
-                <Text style={styles.submitButtonText}>Create Account</Text>
+                <Text style={styles.sendButtonText}>Update Password</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -190,26 +196,51 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
   },
+  doneContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    gap: 16,
+  },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 32,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   title: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 28,
     color: Colors.soil,
-    marginBottom: 4,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
     color: Colors.bark,
-    marginBottom: 28,
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  body: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 14,
+    color: Colors.bark,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   form: {
-    gap: 20,
+    gap: 16,
   },
   fieldGroup: {
     gap: 6,
@@ -232,10 +263,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.textPrimary,
   },
-  inputError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
   passwordRow: {
     position: 'relative',
   },
@@ -249,26 +276,23 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
   },
-  errorText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 12,
-    color: Colors.error,
-    marginTop: 2,
-  },
-  submitErrorBox: {
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: Colors.errorBg,
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
     borderColor: Colors.error,
   },
-  submitErrorText: {
+  errorText: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 13,
     color: Colors.error,
-    textAlign: 'center',
+    flex: 1,
   },
-  submitButton: {
+  sendButton: {
     backgroundColor: Colors.green700,
     borderRadius: 14,
     height: 50,
@@ -276,10 +300,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
   },
-  submitButtonDisabled: {
+  sendButtonDisabled: {
     opacity: 0.7,
   },
-  submitButtonText: {
+  sendButtonText: {
     fontFamily: 'DMSans_600SemiBold',
     fontSize: 15,
     color: Colors.textOnDark,

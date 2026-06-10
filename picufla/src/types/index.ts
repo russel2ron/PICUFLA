@@ -1,3 +1,5 @@
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+
 export interface AppUser {
   id: string;
   email: string;
@@ -9,6 +11,9 @@ export interface AppUser {
   notifications_enabled: boolean;
   is_deleted: boolean;
   deleted_at: string | null;
+  gender: Gender | null;
+  bio: string | null;
+  setup_complete: boolean;
 }
 
 export interface Plant {
@@ -92,6 +97,10 @@ export type RootStackParamList = {
   EmailRegister: undefined;
   EmailLogin: undefined;
   VerifyEmail: { email: string };
+  VerifyOtp: { email: string; purpose?: 'password_reset' };
+  SetupProfile: undefined;
+  ForgotPassword: undefined;
+  ChangePassword: undefined;
 };
 
 export type AppTabParamList = {
@@ -108,10 +117,11 @@ export type CollectionStackParamList = {
 
 export type ScanStackParamList = {
   Scan: undefined;
-  IdentificationResult: { result: IdentificationResult; capturedImageUri: string };
+  IdentificationResult: { result: IdentificationResult; capturedImageUri: string; imageSource?: 'camera' | 'gallery' };
 };
 
 export type ProfileStackParamList = {
   Profile: undefined;
   PrivacyPolicy: undefined;
+  SetupProfile: undefined;
 };

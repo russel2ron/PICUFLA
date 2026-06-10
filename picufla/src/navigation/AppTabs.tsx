@@ -9,6 +9,7 @@ import ReminderScreen from '../screens/ReminderScreen';
 import ScanScreen from '../screens/ScanScreen';
 import IdentificationResultScreen from '../screens/IdentificationResultScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SetupProfileScreen from '../screens/SetupProfileScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import type {
   AppTabParamList,
@@ -45,6 +46,7 @@ function ProfileStackScreen() {
   return (
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="Profile" component={ProfileScreen} />
+      <ProfileStack.Screen name="SetupProfile" component={SetupProfileScreen} />
       <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     </ProfileStack.Navigator>
   );

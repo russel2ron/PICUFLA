@@ -1,14 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator,
-  Alert, TextInput, Switch, Modal, Linking, Platform,
+  Alert, Switch, Linking,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { CommonActions } from '@react-navigation/native';
+
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../constants/colors';
 import { useAuthStore } from '../store/authStore';
@@ -50,21 +51,14 @@ export default function ProfileScreen({ navigation }: Props) {
   const [lastSyncDate, setLastSyncDate] = useState<Date | null>(null);
   const [loadingSync, setLoadingSync] = useState(true);
 
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [deleteType, setDeleteType] = useState<'account' | 'plant_data'>('plant_data');
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [deleting, setDeleting] = useState(false);
-
-  const [reauthModalVisible, setReauthModalVisible] = useState(false);
-  const [reauthPassword, setReauthPassword] = useState('');
-  const [reauthing, setReauthing] = useState(false);
-  const [reauthError, setReauthError] = useState('');
-
   const discoveredCount = plants.filter((p) => !p.is_deleted).length;
   const favoritesCount = plants.filter((p) => p.is_favorite && !p.is_deleted).length;
   const remindersCount = 0;
 
-  React.useEffect(() => {
+  const [offlineMode, setOfflineMode] = useState(false);
+  const [cacheSize, setCacheSize] = useState('');
+
+  useEffect(() => {
     (async () => {
       if (!user) return;
       try {
@@ -76,7 +70,18 @@ export default function ProfileScreen({ navigation }: Props) {
         setLoadingSync(false);
       }
     })();
+    (async () => {
+      try {
+        const val = await AsyncStorage.getItem('offlineMode');
+        setOfflineMode(val === 'true');
+      } catch {}
+    })();
   }, [user]);
+
+  const handleToggleOffline = async (value: boolean) => {
+    setOfflineMode(value);
+    await AsyncStorage.setItem('offlineMode', String(value));
+  };
 
   const handleToggleNotifications = async (value: boolean) => {
     if (!user) return;
@@ -113,9 +118,6 @@ export default function ProfileScreen({ navigation }: Props) {
       }
     }
     useAuthStore.getState().clearAuth();
-    navigation.dispatch(
-      CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }),
-    );
   }, [user, navigation]);
 
   const handleLogout = () => {
@@ -123,60 +125,6 @@ export default function ProfileScreen({ navigation }: Props) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log Out', style: 'destructive', onPress: performLogout },
     ]);
-  };
-
-  const handleReauthSubmit = async () => {
-    setReauthError('');
-    setReauthing(true);
-    try {
-      await authService.reauthenticateWithPassword(reauthPassword);
-      setReauthModalVisible(false);
-      setReauthPassword('');
-      setDeleteType('account');
-      setDeleteConfirmText('');
-      setDeleteModalVisible(true);
-    } catch (err: any) {
-      setReauthError(err.message || 'Re-authentication failed.');
-    } finally {
-      setReauthing(false);
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!user) return;
-    setDeleting(true);
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        'delete-user',
-        {
-          body: {
-            confirmationText: deleteConfirmText.trim(),
-            deletionType: deleteType,
-          },
-        },
-      );
-
-      if (invokeError) throw invokeError;
-      const result = data as { success?: boolean; message?: string; error?: string };
-      if (!result.success) throw new Error(result.error ?? 'Delete failed.');
-
-      setDeleteModalVisible(false);
-      setDeleteConfirmText('');
-
-      if (deleteType === 'account') {
-        await authService.logout().catch(() => {});
-        await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
-        await cacheService.clearCache(user.id).catch(() => {});
-        useAuthStore.getState().clearAuth();
-        navigation.dispatch(
-          CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }),
-        );
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Something went wrong.');
-    } finally {
-      setDeleting(false);
-    }
   };
 
   const formatSyncTime = (date: Date | null): string => {
@@ -230,6 +178,14 @@ export default function ProfileScreen({ navigation }: Props) {
               {user.auth_provider === 'google' ? 'Google' : 'Email'}
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.editProfileButton}
+            onPress={() => navigation.navigate('SetupProfile')}
+            activeOpacity={0.8}
+          >
+            <Feather name="edit-2" size={14} color={Colors.green700} />
+            <Text style={styles.editProfileText}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
@@ -290,13 +246,16 @@ export default function ProfileScreen({ navigation }: Props) {
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Offline mode</Text>
-                {loadingSync ? (
-                  <ActivityIndicator size="small" color={Colors.bark} />
-                ) : (
-                  <Text style={styles.settingSubtext}>{formatSyncTime(lastSyncDate)}</Text>
-                )}
+                <Text style={styles.settingSubtext}>
+                  {loadingSync ? '' : formatSyncTime(lastSyncDate)}{cacheSize ? ` · ${cacheSize}` : ''}
+                </Text>
               </View>
-              <Feather name="chevron-right" size={18} color={Colors.bark} />
+              <Switch
+                value={offlineMode}
+                onValueChange={handleToggleOffline}
+                trackColor={{ false: Colors.stone, true: Colors.green300 }}
+                thumbColor={offlineMode ? Colors.green700 : Colors.card}
+              />
             </View>
           </View>
         </View>
@@ -317,7 +276,7 @@ export default function ProfileScreen({ navigation }: Props) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.settingRow}
+              style={[styles.settingRow, { borderBottomWidth: 0 }]}
               onPress={handleLogout}
               activeOpacity={0.7}
             >
@@ -325,49 +284,6 @@ export default function ProfileScreen({ navigation }: Props) {
                 <Feather name="log-out" size={16} color={Colors.green700} />
               </View>
               <Text style={[styles.settingLabel, { flex: 1 }]}>Log Out</Text>
-              <Feather name="chevron-right" size={18} color={Colors.bark} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingRow}
-              onPress={() => {
-                setDeleteType('plant_data');
-                setDeleteConfirmText('');
-                setDeleteModalVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconChip, { backgroundColor: Colors.terraLight }]}>
-                <Feather name="trash-2" size={16} color={Colors.terra} />
-              </View>
-              <Text style={[styles.settingLabel, { flex: 1, color: Colors.soil }]}>
-                Erase Plant Data
-              </Text>
-              <Feather name="chevron-right" size={18} color={Colors.bark} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.settingRow, { borderBottomWidth: 0 }]}
-              onPress={() => {
-                if (user.auth_provider === 'google') {
-                  Alert.alert(
-                    'Re-authentication Required',
-                    'Please sign in with Google again to delete your account.',
-                  );
-                  return;
-                }
-                setReauthPassword('');
-                setReauthError('');
-                setReauthModalVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconChip, { backgroundColor: Colors.errorBg }]}>
-                <Feather name="alert-circle" size={16} color={Colors.error} />
-              </View>
-              <Text style={[styles.settingLabel, { flex: 1, color: Colors.error }]}>
-                Delete Account
-              </Text>
               <Feather name="chevron-right" size={18} color={Colors.bark} />
             </TouchableOpacity>
           </View>
@@ -379,110 +295,6 @@ export default function ProfileScreen({ navigation }: Props) {
           Deletion requests processed within 30 days.
         </Text>
       </ScrollView>
-
-      <Modal visible={reauthModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Re-enter Password</Text>
-            <Text style={styles.modalSubtitle}>
-              Enter your password to confirm account deletion.
-            </Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Password"
-              placeholderTextColor={Colors.bark}
-              secureTextEntry
-              autoCapitalize="none"
-              value={reauthPassword}
-              onChangeText={setReauthPassword}
-            />
-            {reauthError !== '' && (
-              <Text style={styles.reauthError}>{reauthError}</Text>
-            )}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setReauthModalVisible(false);
-                  setReauthPassword('');
-                  setReauthError('');
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalConfirmButton,
-                  (!reauthPassword.trim() || reauthing) && styles.modalConfirmDisabled,
-                ]}
-                onPress={handleReauthSubmit}
-                disabled={!reauthPassword.trim() || reauthing}
-                activeOpacity={0.7}
-              >
-                {reauthing ? (
-                  <ActivityIndicator size="small" color={Colors.textOnDark} />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Continue</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={deleteModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {deleteType === 'account' ? 'Delete Account' : 'Erase Plant Data'}
-            </Text>
-            <Text style={styles.modalWarning}>
-              {deleteType === 'account'
-                ? 'This permanently deletes your account and all data within 30 days. This cannot be undone.'
-                : 'This will permanently delete all your plant discoveries and photos within 30 days.'}
-            </Text>
-            <Text style={styles.modalConfirmLabel}>Type DELETE to confirm</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="DELETE"
-              placeholderTextColor={Colors.bark}
-              autoCorrect={false}
-              autoCapitalize="characters"
-              value={deleteConfirmText}
-              onChangeText={setDeleteConfirmText}
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setDeleteModalVisible(false);
-                  setDeleteConfirmText('');
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalConfirmButton,
-                  (deleteConfirmText.trim() !== 'DELETE' || deleting) &&
-                    styles.modalConfirmDisabled,
-                ]}
-                onPress={handleDeleteConfirm}
-                disabled={deleteConfirmText.trim() !== 'DELETE' || deleting}
-                activeOpacity={0.7}
-              >
-                {deleting ? (
-                  <ActivityIndicator size="small" color={Colors.textOnDark} />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Confirm</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -508,7 +320,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 60,
     paddingBottom: 20,
     gap: 6,
   },
@@ -548,12 +360,12 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 22,
+    fontSize: 24,
     color: Colors.soil,
   },
   email: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
+    fontSize: 15,
     color: Colors.bark,
   },
   providerPill: {
@@ -565,6 +377,21 @@ const styles = StyleSheet.create({
   providerPillText: {
     fontFamily: 'DMSans_600SemiBold',
     fontSize: 11,
+    color: Colors.green700,
+  },
+  editProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.green100,
+  },
+  editProfileText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 13,
     color: Colors.green700,
   },
   statsRow: {
@@ -653,96 +480,5 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 20,
     lineHeight: 17,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  modalContent: {
-    backgroundColor: Colors.card,
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 360,
-    gap: 12,
-  },
-  modalTitle: {
-    fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 20,
-    color: Colors.soil,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.bark,
-    textAlign: 'center',
-  },
-  modalWarning: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.error,
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-  modalConfirmLabel: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 12,
-    color: Colors.soil,
-    marginTop: 4,
-  },
-  modalInput: {
-    backgroundColor: Colors.linen,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 14,
-    color: Colors.soil,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  modalCancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.linen,
-    borderRadius: 10,
-  },
-  modalCancelText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
-    color: Colors.bark,
-  },
-  modalConfirmButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.error,
-    borderRadius: 10,
-  },
-  modalConfirmDisabled: {
-    opacity: 0.5,
-  },
-  modalConfirmText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
-    color: Colors.textOnDark,
-  },
-  reauthError: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 12,
-    color: Colors.error,
-    textAlign: 'center',
   },
 });

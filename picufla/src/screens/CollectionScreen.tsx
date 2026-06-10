@@ -1,7 +1,7 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, Image, TextInput,
-  ActivityIndicator, AppState,
+  ActivityIndicator, AppState, Modal, ScrollView, RefreshControl, Animated,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
@@ -46,6 +46,7 @@ export default function CollectionScreen({ navigation }: Props) {
   const [offline, setOffline] = React.useState(false);
   const [lastSync, setLastSync] = React.useState<Date | null>(null);
   const [appState, setAppState] = React.useState(AppState.currentState);
+  const [refreshing, setRefreshing] = useState(false);
 
   const filteredPlants = useMemo(
     () => getFilteredPlants({ plants, searchQuery, sortOrder, filterTag }),
@@ -81,6 +82,47 @@ export default function CollectionScreen({ navigation }: Props) {
       setLoading(false);
     }
   }, [user, setPlants, setLoading]);
+
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const statsAnim = useRef(new Animated.Value(0)).current;
+  const cardAnims = useRef<Animated.Value[]>([]).current;
+  const getCardAnim = (index: number) => {
+    if (!cardAnims[index]) {
+      cardAnims[index] = new Animated.Value(0);
+    }
+    return cardAnims[index];
+  };
+
+  useEffect(() => {
+    const float = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -8, duration: 3000, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 3000, useNativeDriver: true }),
+      ]),
+    );
+    float.start();
+    return () => float.stop();
+  }, []);
+
+  useEffect(() => {
+    statsAnim.setValue(0);
+    Animated.timing(statsAnim, { toValue: 1, duration: 500, delay: 200, useNativeDriver: true }).start();
+    const anims = filteredPlants.map((_, i) => {
+      return Animated.timing(getCardAnim(i), {
+        toValue: 1,
+        duration: 400,
+        delay: i * 80,
+        useNativeDriver: true,
+      });
+    });
+    Animated.stagger(80, anims).start();
+  }, [filteredPlants.length]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchPlants();
+    setRefreshing(false);
+  }, [fetchPlants]);
 
   useEffect(() => {
     if (!user) return;
@@ -124,8 +166,16 @@ export default function CollectionScreen({ navigation }: Props) {
     return { favorites, tags: tagSet.size, spots: spotSet.size };
   }, [plants]);
 
+  const [filterVisible, setFilterVisible] = useState(false);
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    plants.forEach((p) => p.tags?.forEach((t) => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [plants]);
+
   const renderPlant = useCallback(
-    ({ item }: { item: UserPlant }) => {
+    ({ item, index }: { item: UserPlant; index: number }) => {
       const tags = item.tags ?? [];
       const visibleTags = tags.slice(0, 3);
       const extraCount = tags.length - 3;
@@ -136,7 +186,16 @@ export default function CollectionScreen({ navigation }: Props) {
         year: 'numeric',
       });
 
+      const anim = getCardAnim(index);
+      const cardStyle = {
+        opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+        transform: [{
+          translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }),
+        }],
+      };
+
       return (
+        <Animated.View style={cardStyle}>
         <TouchableOpacity
           style={styles.plantCard}
           activeOpacity={0.8}
@@ -178,10 +237,11 @@ export default function CollectionScreen({ navigation }: Props) {
               </View>
             )}
           </View>
-        </TouchableOpacity>
-      );
-    },
-    [navigation],
+          </TouchableOpacity>
+        </Animated.View>
+        );
+      },
+      [navigation],
   );
 
   const keyExtractor = useCallback((item: UserPlant) => item.id, []);
@@ -217,12 +277,17 @@ export default function CollectionScreen({ navigation }: Props) {
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>My Plants</Text>
+          <View style={styles.headerTitleRow}>
+            <Text style={styles.headerTitle}>My Plants</Text>
+            <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+              <Feather name="feather" size={18} color={Colors.green400} />
+            </Animated.View>
+          </View>
           <Text style={styles.headerSubtitle}>
             {plants.length} {plants.length === 1 ? 'discovery' : 'discoveries'}
           </Text>
         </View>
-        <TouchableOpacity style={styles.filterButton} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.filterButton} onPress={() => setFilterVisible(true)} activeOpacity={0.7}>
           <Feather name="sliders" size={18} color={Colors.bark} />
         </TouchableOpacity>
       </View>
@@ -242,7 +307,10 @@ export default function CollectionScreen({ navigation }: Props) {
         <Feather name="arrow-down" size={16} color={Colors.bark} />
       </View>
 
-      <View style={styles.statsRow}>
+      <Animated.View style={[styles.statsRow, {
+        opacity: statsAnim,
+        transform: [{ translateX: statsAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
+      }]}>
         <View style={[styles.statChip, { backgroundColor: Colors.green100 }]}>
           <Feather name="heart" size={12} color={Colors.green700} />
           <Text style={[styles.statText, { color: Colors.green700 }]}>{stats.favorites} favorites</Text>
@@ -255,7 +323,7 @@ export default function CollectionScreen({ navigation }: Props) {
           <Feather name="map-pin" size={12} color={Colors.blushDark} />
           <Text style={[styles.statText, { color: Colors.blushDark }]}>{stats.spots} spots</Text>
         </View>
-      </View>
+      </Animated.View>
 
       <View style={styles.sortRow}>
         {SORT_OPTIONS.map((opt) => (
@@ -282,7 +350,9 @@ export default function CollectionScreen({ navigation }: Props) {
         </View>
       ) : filteredPlants.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="feather" size={64} color={Colors.green300} />
+          <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+            <Feather name="feather" size={64} color={Colors.green300} />
+          </Animated.View>
           <Text style={styles.emptyTitle}>No Plants Yet</Text>
           <Text style={styles.emptySubtitle}>
             {searchQuery || filterTag
@@ -313,8 +383,50 @@ export default function CollectionScreen({ navigation }: Props) {
           columnWrapperStyle={styles.plantGridRow}
           contentContainerStyle={styles.plantGrid}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[Colors.green700]}
+              tintColor={Colors.green700}
+            />
+          }
         />
       )}
+
+      <Modal visible={filterVisible} transparent animationType="fade" onRequestClose={() => setFilterVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Filter by Tag</Text>
+            <ScrollView style={styles.modalScroll}>
+              <TouchableOpacity
+                style={[styles.filterOption, !filterTag && styles.filterOptionActive]}
+                onPress={() => { setFilterTag(''); setFilterVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.filterOptionText, !filterTag && styles.filterOptionTextActive]}>All Plants</Text>
+              </TouchableOpacity>
+              {allTags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={[styles.filterOption, filterTag === tag && styles.filterOptionActive]}
+                  onPress={() => { setFilterTag(tag); setFilterVisible(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterOptionText, filterTag === tag && styles.filterOptionTextActive]}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setFilterVisible(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -356,11 +468,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 56,
     paddingBottom: 16,
   },
   headerLeft: {
     gap: 2,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerTitle: {
     fontFamily: 'DMSerifDisplay_400Regular',
@@ -556,5 +673,59 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_600SemiBold',
     fontSize: 14,
     color: Colors.textOnDark,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  modalContent: {
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+    maxHeight: '80%',
+    gap: 12,
+  },
+  modalTitle: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 20,
+    color: Colors.soil,
+    textAlign: 'center',
+  },
+  modalScroll: {
+    maxHeight: 300,
+  },
+  filterOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  filterOptionActive: {
+    backgroundColor: Colors.green100,
+  },
+  filterOptionText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 14,
+    color: Colors.soil,
+  },
+  filterOptionTextActive: {
+    color: Colors.green700,
+    fontFamily: 'DMSans_600SemiBold',
+  },
+  modalCloseButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: Colors.linen,
+    borderRadius: 10,
+  },
+  modalCloseText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 13,
+    color: Colors.bark,
   },
 });
