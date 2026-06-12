@@ -5,14 +5,14 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../constants/colors';
+import Button from '../components/Button';
+import { StorageKeys } from '../constants/storage';
 import { useAuthStore } from '../store/authStore';
+import { useAppStore } from '../store/appStore';
 import { useCollectionStore } from '../store/collectionStore';
 import { authService } from '../services/authService';
 import { cacheService } from '../services/cacheService';
@@ -33,13 +33,6 @@ function getInitials(displayName: string): string {
 }
 
 export default function ProfileScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const user = useAuthStore((s) => s.user);
   const plants = useCollectionStore((s) => s.plants);
 
@@ -55,7 +48,8 @@ export default function ProfileScreen({ navigation }: Props) {
   const favoritesCount = plants.filter((p) => p.is_favorite && !p.is_deleted).length;
   const remindersCount = 0;
 
-  const [offlineMode, setOfflineMode] = useState(false);
+  const offlineMode = useAppStore((s) => s.isOffline);
+  const setOffline = useAppStore((s) => s.setOffline);
   const [cacheSize, setCacheSize] = useState('');
 
   useEffect(() => {
@@ -70,17 +64,11 @@ export default function ProfileScreen({ navigation }: Props) {
         setLoadingSync(false);
       }
     })();
-    (async () => {
-      try {
-        const val = await AsyncStorage.getItem('offlineMode');
-        setOfflineMode(val === 'true');
-      } catch {}
-    })();
   }, [user]);
 
-  const handleToggleOffline = async (value: boolean) => {
-    setOfflineMode(value);
-    await AsyncStorage.setItem('offlineMode', String(value));
+  const handleToggleOffline = (value: boolean) => {
+    setOffline(value);
+    AsyncStorage.setItem(StorageKeys.OFFLINE_MODE, String(value));
   };
 
   const handleToggleNotifications = async (value: boolean) => {
@@ -138,14 +126,6 @@ export default function ProfileScreen({ navigation }: Props) {
     return `Synced ${date.toLocaleDateString()}`;
   };
 
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
-
   if (!user) {
     return (
       <View style={styles.loadingContainer}>
@@ -178,14 +158,7 @@ export default function ProfileScreen({ navigation }: Props) {
               {user.auth_provider === 'google' ? 'Google' : 'Email'}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.editProfileButton}
-            onPress={() => navigation.navigate('SetupProfile')}
-            activeOpacity={0.8}
-          >
-            <Feather name="edit-2" size={14} color={Colors.green700} />
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
+          <Button title="Edit Profile" onPress={() => navigation.navigate('SetupProfile')} variant="secondary" style={styles.editProfileButton} />
         </View>
 
         <View style={styles.statsRow}>
@@ -380,20 +353,9 @@ const styles = StyleSheet.create({
     color: Colors.green700,
   },
   editProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     marginTop: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.green100,
   },
-  editProfileText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
-    color: Colors.green700,
-  },
+
   statsRow: {
     flexDirection: 'row',
     gap: 10,

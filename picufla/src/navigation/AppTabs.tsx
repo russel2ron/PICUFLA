@@ -3,6 +3,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
+import { useAppStore } from '../store/appStore';
+import OfflineBanner from '../components/OfflineBanner';
 import CollectionScreen from '../screens/CollectionScreen';
 import PlantDetailScreen from '../screens/PlantDetailScreen';
 import ReminderScreen from '../screens/ReminderScreen';
@@ -22,12 +24,16 @@ const Tab = createBottomTabNavigator<AppTabParamList>();
 
 const CollectionStack = createStackNavigator<CollectionStackParamList>();
 function CollectionStackScreen() {
+  const isOffline = useAppStore((s) => s.isOffline);
   return (
-    <CollectionStack.Navigator screenOptions={{ headerShown: false }}>
-      <CollectionStack.Screen name="Collection" component={CollectionScreen} />
-      <CollectionStack.Screen name="PlantDetail" component={PlantDetailScreen} />
-      <CollectionStack.Screen name="Reminders" component={ReminderScreen} />
-    </CollectionStack.Navigator>
+    <View style={{ flex: 1 }}>
+      <OfflineBanner visible={isOffline} />
+      <CollectionStack.Navigator screenOptions={{ headerShown: false }}>
+        <CollectionStack.Screen name="Collection" component={CollectionScreen} />
+        <CollectionStack.Screen name="PlantDetail" component={PlantDetailScreen} />
+        <CollectionStack.Screen name="Reminders" component={ReminderScreen} />
+      </CollectionStack.Navigator>
+    </View>
   );
 }
 

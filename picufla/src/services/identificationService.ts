@@ -8,18 +8,18 @@ export const identificationService = {
     const result = await manipulateAsync(
       uri,
       [{ resize: { width: 1024 } }],
-      { compress: 1.0, format: SaveFormat.JPEG, base64: true }
+      { compress: 0.7, format: SaveFormat.JPEG, base64: true }
     );
     const size = (result.base64!.length * 3) / 4;
     if (size > Config.MAX_IMAGE_SIZE_BYTES) {
       const result2 = await manipulateAsync(
         uri,
         [{ resize: { width: 800 } }],
-        { compress: 1.0, format: SaveFormat.JPEG, base64: true }
+        { compress: 0.5, format: SaveFormat.JPEG, base64: true }
       );
       const size2 = (result2.base64!.length * 3) / 4;
       if (size2 > Config.MAX_IMAGE_SIZE_BYTES) {
-        throw new Error('Image too large to process.');
+        throw new Error('Image too large to process. Try a smaller image.');
       }
       return { base64: result2.base64!, mimeType: 'image/jpeg' };
     }

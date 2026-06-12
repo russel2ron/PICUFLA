@@ -3,14 +3,15 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
   Platform, ActivityIndicator, Keyboard, Pressable,
 } from 'react-native';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { z } from 'zod';
 import { Colors } from '../constants/colors';
 import { authService } from '../services/authService';
+import { otpStorage } from '../services/otpStorage';
+import { useAuthStore } from '../store/authStore';
+import Button from '../components/Button';
+import Input from '../components/Input';
 import type { RootStackParamList } from '../types';
 
 const registerSchema = z.object({
@@ -31,29 +32,13 @@ type Props = {
 };
 
 export default function EmailRegisterScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
+  const setPendingOtpEmail = useAuthStore((s) => s.setPendingOtpEmail);
 
   const handleRegister = async () => {
     Keyboard.dismiss();
@@ -74,6 +59,9 @@ export default function EmailRegisterScreen({ navigation }: Props) {
     setIsSubmitting(true);
     try {
       await authService.registerWithEmail(email, password);
+      await authService.sendOtp(email);
+      await otpStorage.setPendingOtpEmail(email);
+      setPendingOtpEmail(email);
     } catch (e: any) {
       setSubmitError(e.message || 'Something went wrong. Please try again.');
     } finally {
@@ -96,58 +84,36 @@ export default function EmailRegisterScreen({ navigation }: Props) {
           <Text style={styles.subtitle}>Enter your details to get started</Text>
 
           <View style={styles.form}>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, errors.email ? styles.inputError : null]}
-                placeholder="you@example.com"
-                placeholderTextColor={Colors.textDisabled}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-              {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-            </View>
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              error={errors.email}
+            />
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput, errors.password ? styles.inputError : null]}
-                  placeholder="Min 8 chars: uppercase, lowercase & number"
-                  placeholderTextColor={Colors.textDisabled}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
-                </TouchableOpacity>
-              </View>
-              {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-            </View>
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Min 8 chars: uppercase, lowercase & number"
+              secureTextEntry
+              autoCapitalize="none"
+              error={errors.password}
+            />
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput, errors.confirmPassword ? styles.inputError : null]}
-                  placeholder="Re-enter your password"
-                  placeholderTextColor={Colors.textDisabled}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirm}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)} style={styles.eyeButton}>
-                  <Feather name={showConfirm ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
-                </TouchableOpacity>
-              </View>
-              {errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
-            </View>
+            <Input
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter your password"
+              secureTextEntry
+              autoCapitalize="none"
+              error={errors.confirmPassword}
+            />
 
             {submitError ? (
               <View style={styles.submitErrorBox}>
@@ -155,18 +121,12 @@ export default function EmailRegisterScreen({ navigation }: Props) {
               </View>
             ) : null}
 
-            <TouchableOpacity
-              style={[styles.submitButton, isSubmitting ? styles.submitButtonDisabled : null]}
+            <Button
+              title="Create Account"
               onPress={handleRegister}
-              disabled={isSubmitting}
-              activeOpacity={0.8}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color={Colors.textOnDark} />
-              ) : (
-                <Text style={styles.submitButtonText}>Create Account</Text>
-              )}
-            </TouchableOpacity>
+              loading={isSubmitting}
+              style={styles.submitButtonSpacing}
+            />
           </View>
         </Pressable>
       </ScrollView>
@@ -175,12 +135,6 @@ export default function EmailRegisterScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.parchment,
@@ -211,50 +165,6 @@ const styles = StyleSheet.create({
   form: {
     gap: 20,
   },
-  fieldGroup: {
-    gap: 6,
-  },
-  label: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    color: Colors.soil,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    height: 50,
-    paddingHorizontal: 16,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  inputError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
-  passwordRow: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 48,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 14,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
-  errorText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 12,
-    color: Colors.error,
-    marginTop: 2,
-  },
   submitErrorBox: {
     backgroundColor: Colors.errorBg,
     borderRadius: 10,
@@ -268,20 +178,7 @@ const styles = StyleSheet.create({
     color: Colors.error,
     textAlign: 'center',
   },
-  submitButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  submitButtonSpacing: {
     marginTop: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
   },
 });

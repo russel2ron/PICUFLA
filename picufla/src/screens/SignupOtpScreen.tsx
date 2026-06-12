@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Keyboard, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StackScreenProps } from '@react-navigation/stack';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-import { StorageKeys } from '../constants/storage';
 import Button from '../components/Button';
+import { StorageKeys } from '../constants/storage';
 import { authService } from '../services/authService';
-import type { RootStackParamList } from '../types';
+import { otpStorage } from '../services/otpStorage';
 
 const RESEND_KEY = StorageKeys.OTP_RESEND;
 const DELAYS = [60, 120, 300];
@@ -19,18 +19,18 @@ interface ResendState {
   cooldownUntil: number;
 }
 
-type Props = StackScreenProps<RootStackParamList, 'VerifyOtp'>;
+type Props = {
+  email: string;
+  onVerified: () => void;
+};
 
-export default function VerifyOtpScreen({ route, navigation }: Props) {
-  const { email, purpose } = route.params;
+export default function SignupOtpScreen({ email, onVerified }: Props) {
   const [otp, setOtp] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [canResend, setCanResend] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
-  const [isProcessing, setIsProcessing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -55,18 +55,6 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
     setCanResend(true);
   };
 
-  const getCurrentCooldownSeconds = async (): Promise<number> => {
-    try {
-      const raw = await AsyncStorage.getItem(RESEND_KEY);
-      if (raw) {
-        const state: ResendState = JSON.parse(raw);
-        const remaining = Math.max(0, Math.ceil((state.cooldownUntil - Date.now()) / 1000));
-        if (remaining > 0) return remaining;
-      }
-    } catch {}
-    return 0;
-  };
-
   const startTimer = (seconds: number) => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     let secs = seconds;
@@ -87,16 +75,26 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
     await AsyncStorage.setItem(RESEND_KEY, JSON.stringify(state));
   };
 
+  const getCurrentCooldownSeconds = async (): Promise<number> => {
+    try {
+      const raw = await AsyncStorage.getItem(RESEND_KEY);
+      if (raw) {
+        const state: ResendState = JSON.parse(raw);
+        const remaining = Math.max(0, Math.ceil((state.cooldownUntil - Date.now()) / 1000));
+        if (remaining > 0) return remaining;
+      }
+    } catch {}
+    return 0;
+  };
+
   const handleResend = async () => {
-    Keyboard.dismiss();
-    setIsSending(true);
+    setIsResending(true);
     setMessage('');
-    setMessageType('');
 
     const remaining = await getCurrentCooldownSeconds();
     if (remaining > 0) {
       startTimer(remaining);
-      setIsSending(false);
+      setIsResending(false);
       return;
     }
 
@@ -108,7 +106,6 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
       const delay = nextCount < DELAYS.length ? DELAYS[nextCount] : DELAYS[DELAYS.length - 1];
       await saveCooldown(nextCount, delay);
       setMessage('Code resent! Check your inbox.');
-      setMessageType('success');
       startTimer(delay);
     } catch (e: any) {
       const msg = e.message || '';
@@ -119,119 +116,82 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
         const delay = nextCount < DELAYS.length ? DELAYS[nextCount] : DELAYS[DELAYS.length - 1];
         await saveCooldown(nextCount, delay);
         setMessage(`Too many attempts. Try again in ${delay}s.`);
-        setMessageType('error');
         startTimer(delay);
       } else {
         setMessage(msg || 'Could not resend code.');
-        setMessageType('error');
       }
     } finally {
-      setIsSending(false);
+      setIsResending(false);
     }
   };
 
   const handleVerify = async () => {
-    Keyboard.dismiss();
     const code = otp.trim();
     setMessage('');
-    setMessageType('');
     if (code.length < 6) {
       setMessage('Enter the 6-digit code sent to your email.');
-      setMessageType('error');
       return;
     }
 
     setIsVerifying(true);
     try {
       await authService.verifyOtp(email, code);
+      await otpStorage.clearPendingOtpEmail();
       await AsyncStorage.removeItem(RESEND_KEY);
-      setIsProcessing(true);
-      if (purpose === 'password_reset') {
-        await authService.logout();
-        navigation.replace('ChangePassword');
-      } else if (purpose === 'signup') {
-        navigation.replace('SetupProfile');
-      } else {
-        await authService.logout();
-        navigation.replace('EmailLogin');
-      }
+      onVerified();
     } catch (e: any) {
       setMessage(e.message || 'Invalid or expired code. Try again.');
-      setMessageType('error');
     } finally {
       setIsVerifying(false);
     }
   };
 
   return (
-    <Pressable onPress={Keyboard.dismiss} style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="arrow-left" size={22} color={Colors.soil} />
-        </TouchableOpacity>
-
         <View style={styles.iconCircle}>
-          <Feather name={purpose === 'password_reset' ? 'key' : 'mail'} size={28} color={Colors.green700} />
+          <Feather name="mail" size={28} color={Colors.green700} />
         </View>
 
-        <Text style={styles.title}>
-          {purpose === 'password_reset' ? 'Check Your Email' : 'Verify Your Email'}
-        </Text>
-
+        <Text style={styles.title}>Verify Your Email</Text>
         <Text style={styles.body}>We sent a 6-digit code to</Text>
         <View style={styles.emailPill}>
           <Text style={styles.emailText}>{email}</Text>
         </View>
 
-        {isProcessing ? (
-          <ActivityIndicator size="large" color={Colors.green700} style={{ marginVertical: 32 }} />
-        ) : (
-          <>
-            <TextInput
-              style={styles.otpInput}
-              placeholder="000000"
-              placeholderTextColor={Colors.textDisabled}
-              value={otp}
-              onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-            />
+        <TextInput
+          style={styles.otpInput}
+          placeholder="000000"
+          placeholderTextColor={Colors.textDisabled}
+          value={otp}
+          onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
+          keyboardType="number-pad"
+          maxLength={6}
+          autoFocus
+        />
 
-            {message ? (
-              <View style={[styles.messageBox, messageType === 'error' ? styles.errorBox : styles.successBox]}>
-                <Feather
-                  name={messageType === 'error' ? 'alert-circle' : 'check-circle'}
-                  size={14}
-                  color={messageType === 'error' ? Colors.error : Colors.success}
-                />
-                <Text style={[styles.messageText, messageType === 'error' ? styles.errorText : styles.successText]}>
-                  {message}
-                </Text>
-              </View>
-            ) : null}
+        {message ? (
+          <View style={[styles.messageBox, message.includes('sent') ? styles.successBox : styles.errorBox]}>
+            <Text style={[styles.messageText, message.includes('sent') ? styles.successText : styles.errorText]}>
+              {message}
+            </Text>
+          </View>
+        ) : null}
 
-            <Button
-              title="Verify Code"
-              onPress={handleVerify}
-              loading={isVerifying}
-              disabled={!otp}
-              style={{ width: '100%' }}
-            />
+        <Button title="Verify Code" onPress={handleVerify} loading={isVerifying} disabled={!otp} />
 
-            <View style={{ height: 12 }} />
-
-            <Button
-              title={canResend ? 'Resend Code' : `Resend in ${countdown}s`}
-              onPress={handleResend}
-              variant="secondary"
-              disabled={!canResend || isSending}
-              style={{ width: '100%' }}
-            />
-          </>
-        )}
+        <Button
+          title={canResend ? 'Resend Code' : `Resend in ${countdown}s`}
+          onPress={handleResend}
+          variant="secondary"
+          disabled={!canResend || isResending}
+          loading={isResending}
+        />
       </View>
-    </Pressable>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -247,14 +207,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     maxWidth: 380,
     width: '100%',
-  },
-  backButton: {
-    position: 'absolute',
-    top: -60,
-    left: -8,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
   },
   iconCircle: {
     width: 56,
@@ -307,9 +259,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   messageBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     borderRadius: 10,
     padding: 12,
     marginBottom: 16,
@@ -327,8 +276,8 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    flex: 1,
+    fontSize: 14,
+    textAlign: 'center',
   },
   successText: {
     color: Colors.success,
@@ -336,4 +285,5 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.error,
   },
+
 });

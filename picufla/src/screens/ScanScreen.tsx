@@ -1,25 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Linking, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Linking, Modal } from 'react-native';
 import { CameraView } from 'expo-camera';
+import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
+import Button from '../components/Button';
+import LoadingScreen from '../components/LoadingScreen';
+import ScanOverlay from '../components/ScanOverlay';
 import { Config } from '../constants/config';
+import { StorageKeys } from '../constants/storage';
 import { permissionService, PermissionStatus } from '../services/permissionService';
 import { identificationService } from '../services/identificationService';
 import { getErrorMessage } from '../utils/errorHandler';
 import type { ScanStackParamList } from '../types';
 
-const SCAN_COUNT_KEY = '@picufla_scan_count';
+const SCAN_COUNT_KEY = StorageKeys.SCAN_COUNT;
 const RATE_LIMIT = 5;
 
 type ViewState = 'viewfinder' | 'preview' | 'identifying';
+type FlashMode = 'off' | 'on' | 'auto';
+
+const FLASH_LABELS: Record<FlashMode, string> = { off: 'Off', on: 'On', auto: 'Auto' };
+const FLASH_ICONS: Record<FlashMode, keyof typeof Feather.glyphMap> = { off: 'zap-off', on: 'zap', auto: 'zap' };
 
 type Props = {
   navigation: StackNavigationProp<ScanStackParamList, 'Scan'>;
@@ -33,34 +39,22 @@ function PermissionDeniedView() {
       <Text style={styles.permissionDeniedSubtitle}>
         PICUFLA needs camera access to identify plants.
       </Text>
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={() => Linking.openSettings()}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.settingsButtonText}>Open Settings</Text>
-      </TouchableOpacity>
+      <Button title="Open Settings" onPress={() => Linking.openSettings()} />
     </View>
   );
 }
 
 export default function ScanScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const [viewState, setViewState] = useState<ViewState>('viewfinder');
   const [cameraPermission, setCameraPermission] = useState<PermissionStatus>('undetermined');
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<'camera' | 'gallery' | null>(null);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [tipsVisible, setTipsVisible] = useState(true);
+  const [tipsVisible, setTipsVisible] = useState(false);
   const [remainingCount, setRemainingCount] = useState(RATE_LIMIT);
   const [limitModalVisible, setLimitModalVisible] = useState(false);
+  const [flash, setFlash] = useState<FlashMode>('off');
   const cameraRef = useRef<CameraView>(null);
 
   useEffect(() => {
@@ -108,30 +102,7 @@ export default function ScanScreen({ navigation }: Props) {
         setCameraPermission(newStatus);
       }
     })();
-
-    (async () => {
-      try {
-        const locStatus = await permissionService.getLocationStatus();
-        if (locStatus === 'granted') {
-          const pos = await Location.getCurrentPositionAsync({});
-          const address = await Location.reverseGeocodeAsync(pos.coords);
-          if (address.length > 0) {
-            const a = address[0];
-            const parts = [a.city, a.region, a.country].filter(Boolean);
-            setLocationLabel(parts.join(', ') || 'Unknown location');
-          }
-        }
-      } catch {}
-    })();
   }, []);
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
 
   if (cameraPermission === 'denied') {
     return <PermissionDeniedView />;
@@ -213,23 +184,33 @@ export default function ScanScreen({ navigation }: Props) {
     }
   };
 
+  const cycleFlash = () => {
+    setFlash((prev) => {
+      const order: FlashMode[] = ['off', 'on', 'auto'];
+      const idx = order.indexOf(prev);
+      return order[(idx + 1) % order.length];
+    });
+  };
+
   return (
     <View style={styles.container}>
       {viewState === 'viewfinder' && (
         <>
-          <CameraView ref={cameraRef} style={styles.camera} facing="back" flash="off">
-            <View style={styles.cornerOverlay}>
-              <View style={[styles.corner, styles.cornerTopLeft]} />
-              <View style={[styles.corner, styles.cornerTopRight]} />
-              <View style={[styles.corner, styles.cornerBottomLeft]} />
-              <View style={[styles.corner, styles.cornerBottomRight]} />
-              <TouchableOpacity style={styles.tipsChip} onPress={() => setTipsVisible(true)} activeOpacity={0.8}>
-                <Feather name="info" size={16} color={Colors.green700} />
-                <Text style={styles.tipsChipText}>Tips</Text>
+          <CameraView ref={cameraRef} style={styles.camera} facing="back" flash={flash}>
+            <ScanOverlay />
+            <View style={styles.topChips}>
+              <TouchableOpacity style={styles.topChip} onPress={cycleFlash} activeOpacity={0.7}>
+                <Feather name={FLASH_ICONS[flash]} size={14} color={Colors.textOnDark} />
+                <Text style={styles.topChipText}>{FLASH_LABELS[flash]}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.topChip} onPress={() => setTipsVisible(true)} activeOpacity={0.7}>
+                <Feather name="info" size={14} color={Colors.textOnDark} />
+                <Text style={styles.topChipText}>Tips</Text>
               </TouchableOpacity>
             </View>
           </CameraView>
-          <View style={styles.bottomPanel}>
+
+          <BlurView intensity={80} tint="dark" style={styles.bottomPanel}>
             <Text style={styles.panelTitle}>Identify a Plant</Text>
             <Text style={styles.panelSubtitle}>Frame the plant clearly. Works best in natural light.</Text>
 
@@ -239,51 +220,48 @@ export default function ScanScreen({ navigation }: Props) {
                 onPress={handlePickFromGallery}
                 activeOpacity={0.8}
               >
-                <Feather name="image" size={24} color={remainingCount === 0 ? Colors.textDisabled : Colors.soil} />
+                <Feather name="image" size={24} color={remainingCount === 0 ? 'rgba(255,255,255,0.3)' : Colors.textOnDark} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.captureButton, remainingCount === 0 && styles.captureButtonDisabled]}
                 onPress={handleTakePhoto}
                 activeOpacity={0.8}
+                disabled={remainingCount === 0}
+              />
+              <TouchableOpacity
+                style={styles.galleryButton}
+                onPress={cycleFlash}
+                activeOpacity={0.8}
               >
-                <Feather name="camera" size={28} color={remainingCount === 0 ? Colors.textDisabled : Colors.textOnDark} />
+                <Feather name={FLASH_ICONS[flash]} size={22} color={Colors.textOnDark} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.locationRow}>
-              <Feather name="map-pin" size={14} color={Colors.green600} />
+              <Feather name="map-pin" size={13} color="rgba(255,255,255,0.6)" />
               <Text style={styles.locationText}>{locationLabel || 'Location off'}</Text>
             </View>
 
             <View style={[styles.remainingChip, remainingCount === 0 && styles.remainingChipEmpty]}>
-              <Feather name="activity" size={13} color={remainingCount === 0 ? Colors.error : Colors.green600} />
+              <Feather name="activity" size={12} color={remainingCount === 0 ? '#B85450' : 'rgba(255,255,255,0.7)'} />
               <Text style={[styles.remainingText, remainingCount === 0 && styles.remainingTextEmpty]}>
                 {remainingCount}/{RATE_LIMIT} identifications remaining
               </Text>
             </View>
-          </View>
+          </BlurView>
         </>
       )}
 
       {viewState === 'preview' && capturedUri && (
         <View style={styles.previewContainer}>
           <Image source={{ uri: capturedUri }} style={styles.previewImage} />
-          <View style={styles.previewButtons}>
-            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake} activeOpacity={0.8}>
-              <Text style={styles.retakeButtonText}>Retake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.identifyButton, remainingCount === 0 && styles.identifyButtonDisabled]}
-              onPress={handleIdentify}
-              disabled={remainingCount === 0}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.identifyButtonText}>Identify This Plant</Text>
-            </TouchableOpacity>
-          </View>
+          <BlurView intensity={80} tint="dark" style={styles.previewBottomBar}>
+            <Button title="Retake" onPress={handleRetake} variant="secondary" style={styles.previewBtn} />
+            <Button title="Identify" onPress={handleIdentify} disabled={remainingCount === 0} style={styles.previewBtn} />
+          </BlurView>
           {errorMessage ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
+            <View style={styles.previewErrorBox}>
+              <Text style={styles.previewErrorText}>{errorMessage}</Text>
             </View>
           ) : null}
         </View>
@@ -293,8 +271,7 @@ export default function ScanScreen({ navigation }: Props) {
         <View style={styles.identifyingContainer}>
           <Image source={{ uri: capturedUri }} style={styles.identifyingImage} />
           <View style={styles.identifyingOverlay}>
-            <ActivityIndicator size="large" color={Colors.green700} />
-            <Text style={styles.identifyingText}>Identifying your plant…</Text>
+            <LoadingScreen message="Identifying your plant…" />
           </View>
         </View>
       )}
@@ -320,13 +297,7 @@ export default function ScanScreen({ navigation }: Props) {
               <Feather name="grid" size={18} color={Colors.terra} />
               <Text style={styles.modalTipText}>Capture the <Text style={styles.modalTipBold}>leaf, flower, or stem</Text> clearly</Text>
             </View>
-            <TouchableOpacity
-              style={styles.modalGotItButton}
-              onPress={() => setTipsVisible(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalGotItText}>Got it!</Text>
-            </TouchableOpacity>
+            <Button title="Got it!" onPress={() => setTipsVisible(false)} />
           </View>
         </View>
       </Modal>
@@ -341,13 +312,7 @@ export default function ScanScreen({ navigation }: Props) {
             <Text style={styles.limitModalBody}>
               You've used all your identifications for this hour. Come back in about an hour to identify more plants.
             </Text>
-            <TouchableOpacity
-              style={styles.limitModalButton}
-              onPress={() => setLimitModalVisible(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.limitModalButtonText}>Got it</Text>
-            </TouchableOpacity>
+            <Button title="Got it" onPress={() => setLimitModalVisible(false)} />
           </View>
         </View>
       </Modal>
@@ -356,222 +321,162 @@ export default function ScanScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.soil,
   },
   camera: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
-  cornerOverlay: {
-    flex: 1,
-  },
-  corner: {
+  topChips: {
     position: 'absolute',
-    width: 40,
-    height: 40,
-    borderColor: '#FFFFFF',
-  },
-  cornerTopLeft: {
     top: 60,
-    left: 24,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    zIndex: 10,
   },
-  cornerTopRight: {
-    top: 60,
-    right: 24,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
+  topChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
-  cornerBottomLeft: {
-    bottom: 60,
-    left: 24,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-  },
-  cornerBottomRight: {
-    bottom: 60,
-    right: 24,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
+  topChipText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 12,
+    color: Colors.textOnDark,
   },
   bottomPanel: {
-    backgroundColor: Colors.linen,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
     alignItems: 'center',
+    gap: 10,
+    overflow: 'hidden',
   },
   panelTitle: {
     fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 24,
-    color: Colors.soil,
-    marginBottom: 4,
+    fontSize: 22,
+    color: Colors.textOnDark,
   },
   panelSubtitle: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 15,
-    color: Colors.bark,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
-    marginBottom: 20,
     paddingHorizontal: 20,
+    marginBottom: 4,
   },
   captureRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
-    marginBottom: 16,
+    gap: 28,
+    marginVertical: 6,
   },
   captureButton: {
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: Colors.green700,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.green300,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
+    backgroundColor: Colors.textOnDark,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
     elevation: 6,
   },
+  captureButtonDisabled: {
+    opacity: 0.5,
+  },
   galleryButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.card,
-    justifyContent: 'center',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.stone,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   galleryButtonDisabled: {
-    backgroundColor: Colors.linen,
-    borderColor: Colors.stone,
-    opacity: 0.6,
-  },
-  captureButtonDisabled: {
-    backgroundColor: Colors.green400,
-    opacity: 0.6,
+    opacity: 0.4,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 16,
   },
   locationText: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.bark,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
   },
   remainingChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.green100,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 100,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
   },
   remainingChipEmpty: {
-    backgroundColor: Colors.errorBg,
+    backgroundColor: 'rgba(184,84,80,0.2)',
   },
   remainingText: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 12,
-    color: Colors.green700,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
   },
   remainingTextEmpty: {
     color: Colors.error,
   },
-  identifyButtonDisabled: {
-    opacity: 0.5,
-  },
-  tipsChip: {
-    position: 'absolute',
-    bottom: 15,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.card,
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 6,
-    zIndex: 10,
-  },
-  tipsChipText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
-    color: Colors.green700,
-  },
   previewContainer: {
     flex: 1,
-    backgroundColor: Colors.parchment,
+    backgroundColor: Colors.soil,
   },
   previewImage: {
-    width: '100%',
-    height: 340,
+    flex: 1,
+    resizeMode: 'contain',
   },
-  previewButtons: {
+  previewBottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     padding: 20,
     gap: 12,
+    paddingBottom: 40,
   },
-  retakeButton: {
+  previewBtn: {
     flex: 1,
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.stone,
   },
-  retakeButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.soil,
-  },
-  identifyButton: {
-    flex: 2,
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  identifyButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
-  },
-  errorBox: {
-    backgroundColor: Colors.errorBg,
+  previewErrorBox: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(184,84,80,0.9)',
     borderRadius: 10,
     padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.error,
-    marginHorizontal: 20,
   },
-  errorText: {
+  previewErrorText: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 13,
-    color: Colors.error,
+    color: Colors.textOnDark,
     textAlign: 'center',
   },
   identifyingContainer: {
@@ -579,21 +484,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.soil,
   },
   identifyingImage: {
-    width: '100%',
-    height: 340,
+    flex: 1,
+    resizeMode: 'contain',
   },
   identifyingOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(237, 231, 218, 0.7)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
-  },
-  identifyingText: {
-    fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 18,
-    color: '#FFFFFF',
-    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
@@ -636,21 +534,6 @@ const styles = StyleSheet.create({
   modalTipBold: {
     fontFamily: 'DMSans_600SemiBold',
   },
-  modalGotItButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 48,
-    paddingHorizontal: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 4,
-    alignSelf: 'stretch',
-  },
-  modalGotItText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
-  },
   limitModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -688,20 +571,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 21,
   },
-  limitModalButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 48,
-    paddingHorizontal: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-  },
-  limitModalButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
-  },
   permissionDeniedContainer: {
     flex: 1,
     backgroundColor: Colors.parchment,
@@ -723,18 +592,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 20,
     marginBottom: 8,
-  },
-  settingsButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    paddingHorizontal: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  settingsButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
   },
 });

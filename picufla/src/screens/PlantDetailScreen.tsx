@@ -4,12 +4,13 @@ import {
   Alert, TextInput,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
 import { Config } from '../constants/config';
+import Badge from '../components/Badge';
+import Input from '../components/Input';
+import Button from '../components/Button';
+import LoadingScreen from '../components/LoadingScreen';
 import { supabase } from '../services/supabase';
 import { plantService } from '../services/plantService';
 import type { CollectionStackParamList, UserPlant } from '../types';
@@ -19,30 +20,7 @@ type Props = {
   route: { params: { userPlantId: string } };
 };
 
-function ConfidenceBadge({ confidence }: { confidence: number }) {
-  const high = confidence >= 0.8;
-  const medium = confidence >= 0.6 && confidence < 0.8;
-
-  const bgColor = high ? Colors.green100 : medium ? Colors.warningBg : Colors.terraLight;
-  const textColor = high ? Colors.green700 : medium ? Colors.warning : Colors.terra;
-  const iconName = high ? 'check' : medium ? 'alert-triangle' : 'help-circle';
-
-  return (
-    <View style={[styles.confidenceBadge, { backgroundColor: bgColor }]}>
-      <Feather name={iconName} size={14} color={textColor} />
-      <Text style={[styles.confidenceText, { color: textColor }]}>{Math.round(confidence * 100)}% match</Text>
-    </View>
-  );
-}
-
 export default function PlantDetailScreen({ navigation, route }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const { userPlantId } = route.params;
   const [plant, setPlant] = useState<UserPlant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -176,15 +154,11 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
     );
   };
 
-  if (!fontsLoaded || loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
+  if (loading) {
+    return <LoadingScreen message="Loading plant details..." />;
   }
 
-  if (!plant || !plant.plant) {
+  if (!plant) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorMessage}>Plant not found.</Text>
@@ -193,6 +167,13 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
   }
 
   const p = plant.plant;
+  if (!p) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorMessage}>Plant data not found.</Text>
+      </View>
+    );
+  }
   const notesUpdated = plant.notes_updated_at
     ? (() => {
         const d = new Date(plant.notes_updated_at);
@@ -241,12 +222,12 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.body}>
-          <View style={styles.nameRow}>
-            <View style={styles.nameArea}>
-              <Text style={styles.commonName}>{p.common_name}</Text>
+          <View style={styles.nameSection}>
+            <Text style={styles.commonName}>{p.common_name}</Text>
+            <View style={styles.scientificRow}>
               <Text style={styles.scientificName}>{p.scientific_name}</Text>
+              <Badge variant="confidence" confidence={plant.confidence_score} />
             </View>
-            <ConfidenceBadge confidence={plant.confidence_score} />
           </View>
 
           <Text style={styles.description}>{p.description}</Text>
@@ -275,28 +256,21 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
           <View style={styles.notesCard}>
             {notesEditing ? (
               <>
-                <TextInput
-                  style={styles.notesInput}
-                  multiline
+                <Input
                   value={notes}
                   onChangeText={setNotes}
+                  multiline
                   maxLength={Config.MAX_NOTES_LENGTH}
                   autoFocus
                 />
                 <View style={styles.notesFooter}>
                   <Text style={styles.notesCounter}>{notes.length} / {Config.MAX_NOTES_LENGTH}</Text>
-                  <TouchableOpacity
-                    style={styles.notesSaveButton}
+                  <Button
+                    title="Save"
                     onPress={handleSaveNotes}
-                    disabled={savingNotes}
-                    activeOpacity={0.7}
-                  >
-                    {savingNotes ? (
-                      <ActivityIndicator size="small" color={Colors.textOnDark} />
-                    ) : (
-                      <Text style={styles.notesSaveText}>Save</Text>
-                    )}
-                  </TouchableOpacity>
+                    loading={savingNotes}
+                    style={styles.notesSaveBtn}
+                  />
                 </View>
               </>
             ) : (
@@ -444,7 +418,7 @@ const styles = StyleSheet.create({
   },
   locationPill: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 15,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -463,38 +437,25 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  nameArea: {
-    flex: 1,
-    marginRight: 12,
+  nameSection: {
+    gap: 2,
   },
   commonName: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 28,
     color: Colors.soil,
-    marginBottom: 4,
+  },
+  scientificRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
   },
   scientificName: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 16,
     fontStyle: 'italic',
     color: Colors.bark,
-  },
-  confidenceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  confidenceText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 12,
   },
   description: {
     fontFamily: 'DMSans_400Regular',
@@ -585,14 +546,6 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: Colors.bark,
   },
-  notesInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.soil,
-    lineHeight: 20,
-  },
   notesFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -604,18 +557,9 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: Colors.bark,
   },
-  notesSaveButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 8,
-    paddingHorizontal: 14,
+  notesSaveBtn: {
     height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notesSaveText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 12,
-    color: Colors.textOnDark,
+    paddingHorizontal: 14,
   },
   tagsWrap: {
     flexDirection: 'row',

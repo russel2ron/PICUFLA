@@ -7,12 +7,15 @@ import type { AppUser, Gender } from '../types';
 export const authService = {
 
   async registerWithEmail(email: string, password: string): Promise<void> {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
       options: {},
     });
     if (error) throw new Error(getErrorMessage(error));
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      throw new Error('An account with this email already exists.');
+    }
   },
 
   async loginWithEmail(email: string, password: string): Promise<void> {

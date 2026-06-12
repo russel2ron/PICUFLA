@@ -1,29 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
+  View, Text, StyleSheet, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackScreenProps } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
-import { Theme } from '../constants/theme';
+import { StorageKeys } from '../constants/storage';
+import Button from '../components/Button';
 import { authService } from '../services/authService';
 import type { RootStackParamList } from '../types';
 
-const COOLDOWN_KEY = 'verifyEmailCooldownEnd';
+const COOLDOWN_KEY = StorageKeys.VERIFY_EMAIL_COOLDOWN;
 
 type Props = StackScreenProps<RootStackParamList, 'VerifyEmail'>;
 
 export default function VerifyEmailScreen({ route, navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const { email } = route.params;
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
@@ -69,14 +60,6 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
       }
     }, 1000);
   };
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
 
   const handleResend = async () => {
     setIsResending(true);
@@ -138,45 +121,26 @@ export default function VerifyEmailScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
-        <TouchableOpacity
-          style={[styles.verifyButton, isVerifying ? styles.buttonDisabled : null]}
+        <Button
+          title="I've Verified My Email"
           onPress={handleVerified}
-          disabled={isVerifying}
-          activeOpacity={0.8}
-        >
-          {isVerifying ? (
-            <ActivityIndicator size="small" color={Colors.textOnDark} />
-          ) : (
-            <Text style={styles.verifyButtonText}>I've Verified My Email</Text>
-          )}
-        </TouchableOpacity>
+          loading={isVerifying}
+          style={styles.fullWidth}
+        />
 
-        <TouchableOpacity
-          style={styles.resendButton}
+        <Button
+          title={canResend ? 'Resend Email' : `Resend in ${countdown}s`}
           onPress={handleResend}
+          variant="secondary"
           disabled={!canResend || isResending}
-          activeOpacity={0.8}
-        >
-          {isResending ? (
-            <ActivityIndicator size="small" color={Colors.green700} />
-          ) : (
-            <Text style={styles.resendButtonText}>
-              {canResend ? 'Resend Email' : `Resend in ${countdown}s`}
-            </Text>
-          )}
-        </TouchableOpacity>
+          style={styles.fullWidth}
+        />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.parchment,
@@ -226,39 +190,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 32,
   },
-  verifyButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
+  fullWidth: {
     width: '100%',
-    paddingHorizontal: 32,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  verifyButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 16,
-    color: Colors.textOnDark,
-  },
-  resendButton: {
-    borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    paddingHorizontal: 32,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    backgroundColor: Colors.card,
-    marginTop: 12,
-  },
-  resendButtonText: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 16,
-    color: Colors.green700,
   },
   successBox: {
     backgroundColor: Colors.successBg,

@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform, Keyboard, Pressable,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
+import Input from '../components/Input';
+import Button from '../components/Button';
 import { authService } from '../services/authService';
 import type { RootStackParamList } from '../types';
 
@@ -17,28 +16,11 @@ type Props = {
 };
 
 export default function ChangePasswordScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDone, setIsDone] = useState(false);
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
 
   const handleChangePassword = async () => {
     Keyboard.dismiss();
@@ -87,13 +69,11 @@ export default function ChangePasswordScreen({ navigation }: Props) {
           </View>
           <Text style={styles.title}>Password Changed</Text>
           <Text style={styles.body}>Your password has been updated. Sign in with your new password.</Text>
-          <TouchableOpacity
-            style={styles.sendButton}
+          <Button
+            title="Sign In"
             onPress={() => navigation.replace('EmailLogin')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.sendButtonText}>Sign In</Text>
-          </TouchableOpacity>
+            style={{ width: '100%' }}
+          />
         </View>
       </View>
     );
@@ -118,41 +98,23 @@ export default function ChangePasswordScreen({ navigation }: Props) {
           <Text style={styles.subtitle}>Choose a strong password for your account.</Text>
 
           <View style={styles.form}>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>New Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  placeholder="Min 8 chars: uppercase, lowercase & number"
-                  placeholderTextColor={Colors.textDisabled}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Input
+              label="New Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Min 8 chars: uppercase, lowercase & number"
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  placeholder="Re-enter your password"
-                  placeholderTextColor={Colors.textDisabled}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirm}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)} style={styles.eyeButton}>
-                  <Feather name={showConfirm ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Input
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter your password"
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
             {error ? (
               <View style={styles.errorBox}>
@@ -161,18 +123,12 @@ export default function ChangePasswordScreen({ navigation }: Props) {
               </View>
             ) : null}
 
-            <TouchableOpacity
-              style={[styles.sendButton, isSubmitting ? styles.sendButtonDisabled : null]}
+            <Button
+              title="Update Password"
               onPress={handleChangePassword}
-              disabled={isSubmitting}
-              activeOpacity={0.8}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color={Colors.textOnDark} />
-              ) : (
-                <Text style={styles.sendButtonText}>Update Password</Text>
-              )}
-            </TouchableOpacity>
+              loading={isSubmitting}
+              style={styles.submitSpacing}
+            />
           </View>
         </Pressable>
       </ScrollView>
@@ -181,12 +137,6 @@ export default function ChangePasswordScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.parchment,
@@ -242,40 +192,6 @@ const styles = StyleSheet.create({
   form: {
     gap: 16,
   },
-  fieldGroup: {
-    gap: 6,
-  },
-  label: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    color: Colors.soil,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    height: 50,
-    paddingHorizontal: 16,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  passwordRow: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 48,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 14,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -292,20 +208,7 @@ const styles = StyleSheet.create({
     color: Colors.error,
     flex: 1,
   },
-  sendButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  submitSpacing: {
     marginTop: 8,
-  },
-  sendButtonDisabled: {
-    opacity: 0.7,
-  },
-  sendButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
   },
 });

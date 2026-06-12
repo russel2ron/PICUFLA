@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Keyboard, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
+  Platform, Keyboard, Pressable,
 } from 'react-native';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { z } from 'zod';
 import { Colors } from '../constants/colors';
+import Input from '../components/Input';
+import Button from '../components/Button';
 import { authService } from '../services/authService';
 import { loginRateLimiter } from '../services/loginRateLimiter';
 import type { RootStackParamList } from '../types';
@@ -24,16 +23,8 @@ type Props = {
 };
 
 export default function EmailLoginScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
@@ -55,14 +46,6 @@ export default function EmailLoginScreen({ navigation }: Props) {
     }, 1000);
     return () => clearInterval(id);
   }, [cooldownSeconds]);
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
 
   const handleLogin = async () => {
     Keyboard.dismiss();
@@ -110,37 +93,24 @@ export default function EmailLoginScreen({ navigation }: Props) {
           <Text style={styles.subtitle}>Sign in to your account</Text>
 
           <View style={styles.form}>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, error ? styles.inputError : null]}
-                placeholder="you@example.com"
-                placeholderTextColor={Colors.textDisabled}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  style={[styles.input, styles.passwordInput, error ? styles.inputError : null]}
-                  placeholder="Enter your password"
-                  placeholderTextColor={Colors.textDisabled}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={Colors.bark} />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
             <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotLink}>
               <Text style={styles.forgotLinkText}>Forgot password?</Text>
@@ -159,18 +129,13 @@ export default function EmailLoginScreen({ navigation }: Props) {
               </View>
             ) : null}
 
-            <TouchableOpacity
-              style={[styles.submitButton, (isSubmitting || cooldownSeconds > 0) ? styles.submitButtonDisabled : null]}
+            <Button
+              title="Sign In"
               onPress={handleLogin}
-              disabled={isSubmitting || cooldownSeconds > 0}
-              activeOpacity={0.8}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color={Colors.textOnDark} />
-              ) : (
-                <Text style={styles.submitButtonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
+              loading={isSubmitting}
+              disabled={cooldownSeconds > 0}
+              style={styles.submitButtonSpacing}
+            />
 
             <TouchableOpacity onPress={() => navigation.navigate('EmailRegister')}>
               <Text style={styles.switchLink}>
@@ -185,12 +150,6 @@ export default function EmailLoginScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.parchment,
@@ -221,44 +180,6 @@ const styles = StyleSheet.create({
   form: {
     gap: 20,
   },
-  fieldGroup: {
-    gap: 6,
-  },
-  label: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    color: Colors.soil,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    height: 50,
-    paddingHorizontal: 16,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  inputError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
-  passwordRow: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 48,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 14,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
   cooldownBox: {
     backgroundColor: Colors.terraLight,
     borderRadius: 10,
@@ -288,22 +209,6 @@ const styles = StyleSheet.create({
     color: Colors.error,
     textAlign: 'center',
   },
-  submitButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
-  },
   forgotLink: {
     alignSelf: 'flex-end',
     marginTop: -12,
@@ -313,6 +218,9 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_500Medium',
     fontSize: 13,
     color: Colors.green700,
+  },
+  submitButtonSpacing: {
+    marginTop: 8,
   },
   switchLink: {
     fontFamily: 'DMSans_400Regular',

@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator, Alert,
-  Animated, PanResponder, Dimensions, TextInput,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
+  Animated, PanResponder, Dimensions,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
+import Badge from '../components/Badge';
+import Button from '../components/Button';
+import Input from '../components/Input';
 import { useAuthStore } from '../store/authStore';
 import { identificationService } from '../services/identificationService';
 import { plantService } from '../services/plantService';
@@ -25,32 +25,7 @@ type Props = {
   route: { params: { result: IdentificationResult; capturedImageUri: string; imageSource?: 'camera' | 'gallery' } };
 };
 
-function ConfidenceBadge({ confidence }: { confidence: number }) {
-  const high = confidence >= 0.8;
-  const medium = confidence >= 0.6 && confidence < 0.8;
-  const low = confidence < 0.6;
-
-  const bgColor = high ? Colors.green100 : medium ? Colors.warningBg : Colors.terraLight;
-  const textColor = high ? Colors.green700 : medium ? Colors.warning : Colors.terra;
-  const iconName = high ? 'check' : medium ? 'alert-triangle' : 'help-circle';
-  const percent = Math.round(confidence * 100);
-
-  return (
-    <View style={[styles.confidenceBadge, { backgroundColor: bgColor }]}>
-      <Feather name={iconName} size={14} color={textColor} />
-      <Text style={[styles.confidenceText, { color: textColor }]}>{percent}% match</Text>
-    </View>
-  );
-}
-
 export default function IdentificationResultScreen({ navigation, route }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const { result, capturedImageUri, imageSource } = route.params;
   const user = useAuthStore((s) => s.user);
   const [selectedAlternative, setSelectedAlternative] = useState<string | null>(null);
@@ -190,14 +165,6 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
     }
   };
 
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.heroWrapper}>
@@ -208,7 +175,11 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
               <Text style={styles.notIdentifiedText}>Could not identify plant</Text>
             </View>
           )}
-          {identified && <ConfidenceBadge confidence={activeResult.confidence_score} />}
+          {identified && (
+            <View style={styles.confidenceBadge}>
+              <Badge variant="confidence" confidence={activeResult.confidence_score} />
+            </View>
+          )}
         </Animated.View>
         {identified && (
           <View style={styles.dragHandle} {...panResponder.panHandlers}>
@@ -317,14 +288,11 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
           </View>
 
           <Text style={styles.sectionLabel}>Notes</Text>
-          <TextInput
-            style={styles.notesInput}
-            placeholder="Add notes about this plant…"
-            placeholderTextColor={Colors.stone}
+          <Input
             value={notes}
             onChangeText={setNotes}
+            placeholder="Add notes about this plant…"
             multiline
-            maxLength={500}
           />
 
           <View style={styles.locationRow}>
@@ -336,30 +304,19 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
 
       {identified && (
         <View style={styles.bottomButtons}>
-          <TouchableOpacity
-            style={styles.bottomRetakeButton}
+          <Button
+            title="Retake"
+            variant="secondary"
             onPress={() => navigation.navigate('Scan')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.bottomRetakeText}>Retake</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.bottomSaveButton,
-              (activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && !selectedAlternative) ? styles.bottomSaveButtonDisabled : null,
-            ]}
+            style={styles.bottomBtnHalf}
+          />
+          <Button
+            title="Save to Collection"
             onPress={handleSave}
-            disabled={
-              (activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && !selectedAlternative) || isSaving
-            }
-            activeOpacity={0.8}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color={Colors.textOnDark} />
-            ) : (
-              <Text style={styles.bottomSaveText}>Save to Collection</Text>
-            )}
-          </TouchableOpacity>
+            loading={isSaving}
+            disabled={!!(activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && !selectedAlternative)}
+            style={styles.bottomBtnHalf}
+          />
         </View>
       )}
     </View>
@@ -367,12 +324,6 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.soil,
@@ -632,20 +583,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.stone + '60',
     marginHorizontal: 16,
   },
-  notesInput: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 14,
-    color: Colors.soil,
-    minHeight: 80,
-    textAlignVertical: 'top',
-    marginBottom: 24,
-  },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -669,35 +606,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
-  bottomRetakeButton: {
-    width: '42%',
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.stone,
-  },
-  bottomRetakeText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 16,
-    color: Colors.soil,
-  },
-  bottomSaveButton: {
-    width: '54%',
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bottomSaveButtonDisabled: {
-    opacity: 0.5,
-  },
-  bottomSaveText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 16,
-    color: Colors.textOnDark,
+  bottomBtnHalf: {
+    flex: 1,
   },
 });

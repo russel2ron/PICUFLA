@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { authService } from '../services/authService';
+import { otpStorage } from '../services/otpStorage';
 import { useAuthStore } from '../store/authStore';
 
 export function useAuth() {
@@ -23,9 +24,7 @@ export function useAuth() {
           const profile = await authService.getUserProfile(session.user.id);
           setUser(profile);
         } else {
-          clearAuth();
-        }
-        if (event === 'SIGNED_OUT') {
+          otpStorage.clearPendingOtpEmail();
           clearAuth();
         }
       }

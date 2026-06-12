@@ -92,12 +92,19 @@ export interface IdentificationResult {
   alternatives: PlantAlternative[] | null;
 }
 
+export type OnboardingStackParamList = {
+  OnboardingWelcome: undefined;
+  OnboardingFeatures: undefined;
+  OnboardingPermissions: undefined;
+  OnboardingTerms: undefined;
+};
+
 export type RootStackParamList = {
   Login: undefined;
   EmailRegister: undefined;
   EmailLogin: undefined;
   VerifyEmail: { email: string };
-  VerifyOtp: { email: string; purpose?: 'password_reset' };
+  VerifyOtp: { email: string; purpose?: 'password_reset' | 'signup' };
   SetupProfile: undefined;
   ForgotPassword: undefined;
   ChangePassword: undefined;

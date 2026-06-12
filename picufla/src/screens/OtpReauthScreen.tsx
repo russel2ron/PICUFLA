@@ -1,29 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { Colors } from '../constants/colors';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import { StorageKeys } from '../constants/storage';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
 
-const LAST_OTP_KEY = 'lastOtpTime';
+const LAST_OTP_KEY = StorageKeys.LAST_OTP_TIME;
 
 type Props = {
   onVerified?: () => void;
 };
 
 export default function OtpReauthScreen({ onVerified }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const session = useAuthStore((s) => s.session);
   const user = useAuthStore((s) => s.user);
   const isNewUser = !!session && !!user && !user.setup_complete;
@@ -86,29 +80,25 @@ export default function OtpReauthScreen({ onVerified }: Props) {
     setIsVerifying(true);
     setMessage('');
     try {
-      await authService.verifyOtp(targetEmail, code);
       await AsyncStorage.setItem(LAST_OTP_KEY, String(Date.now()));
+      await authService.verifyOtp(targetEmail, code);
       onVerified?.();
     } catch (e: any) {
+      await AsyncStorage.removeItem(LAST_OTP_KEY);
       setMessage(e.message || 'Invalid code. Try again.');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.content}>
         <Text style={styles.icon}>{isNewUser ? '🎉' : '🔐'}</Text>
-        <Text style={styles.title}>{isNewUser ? 'Welcome!' : 'Session Verification'}</Text>
+        <Text style={styles.title}>{isNewUser ? 'Welcome!' : 'Enter OTP'}</Text>
         <Text style={styles.body}>
           {isNewUser
             ? 'Your account is ready! Check your email for the verification code.'
@@ -131,27 +121,16 @@ export default function OtpReauthScreen({ onVerified }: Props) {
 
         {step === 'email' ? (
           <>
-            <TextInput
-              style={styles.input}
-              placeholder="Your email address"
-              placeholderTextColor={Colors.textDisabled}
+            <Input
               value={email}
               onChangeText={setEmail}
+              placeholder="Your email address"
               keyboardType="email-address"
               autoCapitalize="none"
+              returnKeyType="go"
+              onSubmitEditing={handleSendOtp}
             />
-            <TouchableOpacity
-              style={[styles.button, isSending ? styles.buttonDisabled : null]}
-              onPress={handleSendOtp}
-              disabled={isSending}
-              activeOpacity={0.8}
-            >
-              {isSending ? (
-                <ActivityIndicator size="small" color={Colors.textOnDark} />
-              ) : (
-                <Text style={styles.buttonText}>Send Code</Text>
-              )}
-            </TouchableOpacity>
+            <Button title="Send Code" onPress={handleSendOtp} loading={isSending} disabled={isSending} />
           </>
         ) : (
           <>
@@ -164,19 +143,10 @@ export default function OtpReauthScreen({ onVerified }: Props) {
               keyboardType="number-pad"
               maxLength={6}
               autoFocus
+              returnKeyType="go"
+              onSubmitEditing={handleVerify}
             />
-            <TouchableOpacity
-              style={[styles.button, (!otp || isVerifying) ? styles.buttonDisabled : null]}
-              onPress={handleVerify}
-              disabled={!otp || isVerifying}
-              activeOpacity={0.8}
-            >
-              {isVerifying ? (
-                <ActivityIndicator size="small" color={Colors.textOnDark} />
-              ) : (
-                <Text style={styles.buttonText}>Verify</Text>
-              )}
-            </TouchableOpacity>
+            <Button title="Verify" onPress={handleVerify} loading={isVerifying} disabled={!otp} />
             {!session?.user?.email && (
               <TouchableOpacity onPress={() => { setStep('email'); setMessage(''); }} activeOpacity={0.7}>
                 <Text style={styles.backLink}>Use a different email</Text>
@@ -185,7 +155,7 @@ export default function OtpReauthScreen({ onVerified }: Props) {
           </>
         )}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -203,12 +173,6 @@ export function isOtpExpired(lastTime: number): boolean {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.parchment,
@@ -251,19 +215,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.soil,
   },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    height: 52,
-    paddingHorizontal: 16,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 16,
-    color: Colors.soil,
-    width: '100%',
-    marginBottom: 16,
-  },
+
   otpInput: {
     backgroundColor: Colors.card,
     borderRadius: 12,
@@ -306,23 +258,7 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.error,
   },
-  button: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    paddingHorizontal: 32,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 16,
-    color: Colors.textOnDark,
-  },
+
   backLink: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 14,

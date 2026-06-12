@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image,
-  ActivityIndicator, Alert, Modal, Keyboard, Pressable,
+  Alert, Modal, Keyboard, Pressable,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { Colors } from '../constants/colors';
+import { StorageKeys } from '../constants/storage';
+import Input from '../components/Input';
+import Button from '../components/Button';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/authService';
 import { cacheService } from '../services/cacheService';
@@ -23,13 +24,6 @@ type Props = {
 };
 
 export default function SetupProfileScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const user = useAuthStore((s) => s.user);
   const [displayName, setDisplayName] = useState(user?.display_name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -46,14 +40,6 @@ export default function SetupProfileScreen({ navigation }: Props) {
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthing, setReauthing] = useState(false);
   const [reauthError, setReauthError] = useState('');
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
 
   if (!user) {
     return (
@@ -103,6 +89,8 @@ export default function SetupProfileScreen({ navigation }: Props) {
         bio: bio.trim() || null,
         setup_complete: true,
       });
+
+      await AsyncStorage.setItem(StorageKeys.LAST_OTP_TIME, String(Date.now()));
 
       useAuthStore.getState().setUser({
         ...user,
@@ -173,14 +161,22 @@ export default function SetupProfileScreen({ navigation }: Props) {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     if (wasSetupComplete) {
       navigation.goBack();
-    } else {
+      return;
+    }
+    try {
+      await authService.updateProfile(user.id, {
+        setup_complete: true,
+      });
+      await AsyncStorage.setItem(StorageKeys.LAST_OTP_TIME, String(Date.now()));
       useAuthStore.getState().setUser({
         ...user,
         setup_complete: true,
       });
+    } catch {
+      Alert.alert('Error', 'Could not skip setup. Please try again.');
     }
   };
 
@@ -207,44 +203,29 @@ export default function SetupProfileScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           <View style={styles.form}>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>DISPLAY NAME</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Your name"
-                placeholderTextColor={Colors.textDisabled}
-                value={displayName}
-                onChangeText={setDisplayName}
-                autoCapitalize="words"
-              />
-            </View>
+            <Input
+              label="Display Name"
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Your name"
+              autoCapitalize="words"
+            />
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>BIO (optional)</Text>
-              <TextInput
-                style={[styles.input, styles.bioInput]}
-                placeholder="A short description about yourself"
-                placeholderTextColor={Colors.textDisabled}
-                value={bio}
-                onChangeText={setBio}
-                multiline
-                maxLength={150}
-              />
-              <Text style={styles.charCount}>{bio.length}/150</Text>
-            </View>
+            <Input
+              label="Bio (optional)"
+              value={bio}
+              onChangeText={setBio}
+              placeholder="A short description about yourself"
+              multiline
+              maxLength={150}
+            />
 
-            <TouchableOpacity
-              style={[styles.saveButton, isSaving ? styles.saveButtonDisabled : null]}
+            <Button
+              title="Save Profile"
               onPress={handleSave}
-              disabled={isSaving}
-              activeOpacity={0.8}
-            >
-              {isSaving ? (
-                <ActivityIndicator size="small" color={Colors.textOnDark} />
-              ) : (
-                <Text style={styles.saveButtonText}>Save Profile</Text>
-              )}
-            </TouchableOpacity>
+              loading={isSaving}
+              style={styles.submitSpacing}
+            />
 
             <TouchableOpacity onPress={handleSkip} activeOpacity={0.7}>
               <Text style={styles.skipText}>Skip for now</Text>
@@ -306,48 +287,35 @@ export default function SetupProfileScreen({ navigation }: Props) {
             <Text style={styles.modalSubtitle}>
               Enter your password to confirm account deletion.
             </Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Password"
-              placeholderTextColor={Colors.bark}
-              secureTextEntry
-              autoCapitalize="none"
+            <Input
               value={reauthPassword}
               onChangeText={setReauthPassword}
+              placeholder="Password"
+              secureTextEntry
+              autoCapitalize="none"
+              error={reauthError || undefined}
             />
-            {reauthError !== '' && (
-              <Text style={styles.reauthError}>{reauthError}</Text>
-            )}
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
+              <Button
+                title="Cancel"
+                variant="secondary"
                 onPress={() => {
                   setReauthModalVisible(false);
                   setReauthPassword('');
                   setReauthError('');
                 }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalConfirmButton,
-                  (!reauthPassword.trim() || reauthing) && styles.modalConfirmDisabled,
-                ]}
+                style={styles.modalBtnHalf}
+              />
+              <Button
+                title="Continue"
                 onPress={handleReauthSubmit}
-                disabled={!reauthPassword.trim() || reauthing}
-                activeOpacity={0.7}
-              >
-                {reauthing ? (
-                  <ActivityIndicator size="small" color={Colors.textOnDark} />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Continue</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                loading={reauthing}
+                disabled={!reauthPassword.trim()}
+                style={styles.modalBtnHalf}
+              />
           </View>
         </View>
+      </View>
       </Modal>
 
       <Modal visible={deleteModalVisible} transparent animationType="fade">
@@ -372,31 +340,23 @@ export default function SetupProfileScreen({ navigation }: Props) {
               onChangeText={setDeleteConfirmText}
             />
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
+              <Button
+                title="Cancel"
+                variant="secondary"
                 onPress={() => {
                   setDeleteModalVisible(false);
                   setDeleteConfirmText('');
                 }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalConfirmButton,
-                  (deleteConfirmText.trim() !== 'DELETE' || deleting) && styles.modalConfirmDisabled,
-                ]}
+                style={styles.modalBtnHalf}
+              />
+              <Button
+                title="Confirm"
                 onPress={handleDeleteConfirm}
-                disabled={deleteConfirmText.trim() !== 'DELETE' || deleting}
-                activeOpacity={0.7}
-              >
-                {deleting ? (
-                  <ActivityIndicator size="small" color={Colors.textOnDark} />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Confirm</Text>
-                )}
-              </TouchableOpacity>
+                loading={deleting}
+                disabled={deleteConfirmText.trim() !== 'DELETE'}
+                variant="danger"
+                style={styles.modalBtnHalf}
+              />
             </View>
           </View>
         </View>
@@ -475,53 +435,8 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 20,
   },
-  fieldGroup: {
-    gap: 6,
-  },
-  label: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    color: Colors.soil,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    height: 50,
-    paddingHorizontal: 16,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  bioInput: {
-    height: 80,
-    paddingTop: 14,
-    textAlignVertical: 'top',
-  },
-  charCount: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 11,
-    color: Colors.textDisabled,
-    textAlign: 'right',
-  },
-  saveButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  submitSpacing: {
     marginTop: 8,
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
   },
   skipText: {
     fontFamily: 'DMSans_500Medium',
@@ -622,39 +537,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 4,
   },
-  modalCancelButton: {
+  modalBtnHalf: {
     flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.linen,
-    borderRadius: 10,
-  },
-  modalCancelText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
-    color: Colors.bark,
-  },
-  modalConfirmButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.error,
-    borderRadius: 10,
-  },
-  modalConfirmDisabled: {
-    opacity: 0.5,
-  },
-  modalConfirmText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
-    color: Colors.textOnDark,
-  },
-  reauthError: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 12,
-    color: Colors.error,
-    textAlign: 'center',
   },
 });

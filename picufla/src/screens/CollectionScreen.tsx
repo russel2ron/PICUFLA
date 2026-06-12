@@ -1,17 +1,18 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, Image, TextInput,
-  ActivityIndicator, AppState, Modal, ScrollView, RefreshControl, Animated,
+  AppState, Modal, ScrollView, RefreshControl, Animated,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import NetInfo from '@react-native-community/netinfo';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
 import { useAuthStore } from '../store/authStore';
+import { useAppStore } from '../store/appStore';
+import OfflineBanner from '../components/OfflineBanner';
+import LoadingScreen from '../components/LoadingScreen';
+import EmptyState from '../components/EmptyState';
 import { useCollectionStore, getFilteredPlants } from '../store/collectionStore';
 import { plantService } from '../services/plantService';
 import { cacheService } from '../services/cacheService';
@@ -30,20 +31,13 @@ type Props = {
 };
 
 export default function CollectionScreen({ navigation }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const user = useAuthStore((s) => s.user);
   const {
     plants, isLoading, searchQuery, sortOrder, filterTag,
     setPlants, setLoading, setSearchQuery, setSortOrder, setFilterTag,
   } = useCollectionStore();
 
-  const [offline, setOffline] = React.useState(false);
+  const [offline, setOffline] = useState(false);
   const [lastSync, setLastSync] = React.useState<Date | null>(null);
   const [appState, setAppState] = React.useState(AppState.currentState);
   const [refreshing, setRefreshing] = useState(false);
@@ -246,34 +240,9 @@ export default function CollectionScreen({ navigation }: Props) {
 
   const keyExtractor = useCallback((item: UserPlant) => item.id, []);
 
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      {offline && (
-        <View style={styles.offlineBanner}>
-          <View style={styles.offlineDot} />
-          <Text style={styles.offlineText}>
-            Offline \u00b7 Last synced: {lastSync
-              ? (() => {
-                  const diffMs = Date.now() - lastSync.getTime();
-                  const diffMins = Math.floor(diffMs / 60000);
-                  if (diffMins < 1) return 'Just now';
-                  if (diffMins < 60) return `${diffMins}m ago`;
-                  const diffHours = Math.floor(diffMins / 60);
-                  if (diffHours < 24) return `${diffHours}h ago`;
-                  return lastSync.toLocaleDateString();
-                })()
-              : 'Never'}
-          </Text>
-        </View>
-      )}
+      <OfflineBanner visible={offline} lastSynced={lastSync} />
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -345,35 +314,15 @@ export default function CollectionScreen({ navigation }: Props) {
       </View>
 
       {isLoading && plants.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.green700} />
-        </View>
+        <LoadingScreen />
       ) : filteredPlants.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
-            <Feather name="feather" size={64} color={Colors.green300} />
-          </Animated.View>
-          <Text style={styles.emptyTitle}>No Plants Yet</Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery || filterTag
-              ? 'Try adjusting your search or filters.'
-              : 'Start identifying plants to build your collection.'}
-          </Text>
-          {!searchQuery && !filterTag && (
-            <TouchableOpacity
-              style={styles.emptyButton}
-              activeOpacity={0.8}
-              onPress={() => {
-                const parentNav = navigation.getParent();
-                if (parentNav) {
-                  (parentNav as any).navigate('ScanTab');
-                }
-              }}
-            >
-              <Text style={styles.emptyButtonText}>Scan Your First Plant</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <EmptyState
+          icon="feather"
+          title="No Plants Yet"
+          subtitle={searchQuery || filterTag ? 'Try adjusting your search or filters.' : 'Start identifying plants to build your collection.'}
+          actionLabel={!searchQuery && !filterTag ? 'Scan Your First Plant' : undefined}
+          onAction={!searchQuery && !filterTag ? () => (navigation.getParent() as any)?.navigate('ScanTab') : undefined}
+        />
       ) : (
         <FlatList
           data={filteredPlants}
@@ -435,33 +384,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.parchment,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
-  offlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.terraLight,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.terra,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    gap: 8,
-  },
-  offlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.terra,
-  },
-  offlineText: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 12,
-    color: Colors.soil,
   },
   header: {
     flexDirection: 'row',
@@ -641,38 +563,6 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_500Medium',
     fontSize: 9,
     color: Colors.lavender,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 22,
-    color: Colors.soil,
-  },
-  emptySubtitle: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.bark,
-    textAlign: 'center',
-  },
-  emptyButton: {
-    marginTop: 12,
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    paddingHorizontal: 24,
-    height: 46,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 14,
-    color: Colors.textOnDark,
   },
   modalOverlay: {
     flex: 1,

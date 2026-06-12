@@ -4,14 +4,14 @@ import {
   Alert, TextInput, Switch, Platform, Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { StackNavigationProp } from '@react-navigation/stack';
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import { Colors } from '../constants/colors';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import Header from '../components/Header';
 import { useAuthStore } from '../store/authStore';
 import { reminderService } from '../services/reminderService';
 import type { CollectionStackParamList, Reminder } from '../types';
@@ -69,13 +69,6 @@ function getCareTypeLabel(careType: Reminder['care_type'], customLabel: string |
 }
 
 export default function ReminderScreen({ navigation, route }: Props) {
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-  });
-
   const { userPlantId, commonName } = route.params;
   const user = useAuthStore((s) => s.user);
 
@@ -220,29 +213,9 @@ export default function ReminderScreen({ navigation, route }: Props) {
     return `${monthDay} at ${time}`;
   };
 
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.green700} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-          style={styles.backButton}
-        >
-          <Feather name="arrow-left" size={20} color={Colors.soil} />
-        </TouchableOpacity>
-        <View style={styles.headerTextArea}>
-          <Text style={styles.headerTitle}>Reminders</Text>
-          <Text style={styles.headerSubtitle}>{commonName}</Text>
-        </View>
-      </View>
+      <Header title="Reminders" subtitle={commonName} onBack={() => navigation.goBack()} />
 
       <ScrollView
         style={styles.scrollView}
@@ -337,12 +310,10 @@ export default function ReminderScreen({ navigation, route }: Props) {
           </View>
 
           {careType === 'custom' && (
-            <TextInput
-              style={styles.customLabelInput}
-              placeholder="Reminder label"
-              placeholderTextColor={Colors.bark}
+            <Input
               value={customLabel}
               onChangeText={setCustomLabel}
+              placeholder="Reminder label"
               maxLength={50}
             />
           )}
@@ -472,18 +443,7 @@ export default function ReminderScreen({ navigation, route }: Props) {
             </View>
           )}
 
-          <TouchableOpacity
-            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-            onPress={handleSave}
-            disabled={isSaving}
-            activeOpacity={0.7}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color={Colors.textOnDark} />
-            ) : (
-              <Text style={styles.saveButtonText}>Save Reminder</Text>
-            )}
-          </TouchableOpacity>
+          <Button title="Save Reminder" onPress={handleSave} loading={isSaving} />
         </View>
       </ScrollView>
     </View>
@@ -491,12 +451,6 @@ export default function ReminderScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.parchment,
-  },
   loadingInline: {
     marginVertical: 16,
   },
@@ -504,36 +458,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.parchment,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.linen,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTextArea: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 22,
-    color: Colors.soil,
-  },
-  headerSubtitle: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.bark,
-    marginTop: 2,
-  },
+
   scrollView: {
     flex: 1,
   },
@@ -623,17 +548,7 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_600SemiBold',
     fontSize: 12,
   },
-  customLabelInput: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.stone,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.soil,
-  },
+
   dateTimeIosContainer: {
     backgroundColor: Colors.card,
     borderRadius: 12,
@@ -692,19 +607,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.bark,
   },
-  saveButton: {
-    backgroundColor: Colors.green700,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 15,
-    color: Colors.textOnDark,
-  },
+
 });

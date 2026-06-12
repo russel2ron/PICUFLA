@@ -117,7 +117,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({D
+      body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 800,
         messages: [
