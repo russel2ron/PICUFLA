@@ -5,6 +5,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackScreenProps } from '@react-navigation/stack';
 import { Feather } from '@expo/vector-icons';
+import AuthLayout from '../components/AuthLayout';
 import { Colors } from '../constants/colors';
 import { StorageKeys } from '../constants/storage';
 import Button from '../components/Button';
@@ -164,81 +165,85 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
   };
 
   return (
-    <Pressable onPress={Keyboard.dismiss} style={styles.container}>
-      <View style={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="arrow-left" size={22} color={Colors.soil} />
-        </TouchableOpacity>
+    <AuthLayout>
+      <Pressable onPress={Keyboard.dismiss} style={styles.container}>
+        <View style={styles.content}>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.backButton}>
+            <Feather name="arrow-left" size={22} color={Colors.textOnDark} />
+          </TouchableOpacity>
 
-        <View style={styles.iconCircle}>
-          <Feather name={purpose === 'password_reset' ? 'key' : 'mail'} size={28} color={Colors.green700} />
+          <View style={styles.iconCircle}>
+            <Feather name={purpose === 'password_reset' ? 'key' : 'mail'} size={28} color={Colors.green700} />
+          </View>
+
+          <Text style={styles.title}>
+            {purpose === 'password_reset' ? 'Check Your Email' : 'Verify Your Email'}
+          </Text>
+
+          <Text style={styles.body}>We sent a 6-digit code to</Text>
+          <View style={styles.emailPill}>
+            <Text style={styles.emailText}>{email}</Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.wrongEmail}>
+            <Text style={styles.wrongEmailText}>Wrong email? Go back</Text>
+          </TouchableOpacity>
+
+          {isProcessing ? (
+            <ActivityIndicator size="large" color={Colors.green700} style={{ marginVertical: 32 }} />
+          ) : (
+            <>
+              <TextInput
+                style={styles.otpInput}
+                placeholder="000000"
+                placeholderTextColor={Colors.textDisabled}
+                value={otp}
+                onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+              />
+
+              {message ? (
+                <View style={[styles.messageBox, messageType === 'error' ? styles.errorBox : styles.successBox]}>
+                  <Feather
+                    name={messageType === 'error' ? 'alert-circle' : 'check-circle'}
+                    size={14}
+                    color={messageType === 'error' ? Colors.error : Colors.success}
+                  />
+                  <Text style={[styles.messageText, messageType === 'error' ? styles.errorText : styles.successText]}>
+                    {message}
+                  </Text>
+                </View>
+              ) : null}
+
+              <Button
+                title="Verify Code"
+                onPress={handleVerify}
+                loading={isVerifying}
+                disabled={!otp}
+                style={{ width: '100%' }}
+              />
+
+              <View style={{ height: 32 }} />
+
+              <Button
+                title={canResend ? 'Resend Code' : `Resend in ${countdown}s`}
+                onPress={handleResend}
+                variant="secondary"
+                disabled={!canResend || isSending}
+                style={{ width: '100%' }}
+              />
+            </>
+          )}
         </View>
-
-        <Text style={styles.title}>
-          {purpose === 'password_reset' ? 'Check Your Email' : 'Verify Your Email'}
-        </Text>
-
-        <Text style={styles.body}>We sent a 6-digit code to</Text>
-        <View style={styles.emailPill}>
-          <Text style={styles.emailText}>{email}</Text>
-        </View>
-
-        {isProcessing ? (
-          <ActivityIndicator size="large" color={Colors.green700} style={{ marginVertical: 32 }} />
-        ) : (
-          <>
-            <TextInput
-              style={styles.otpInput}
-              placeholder="000000"
-              placeholderTextColor={Colors.textDisabled}
-              value={otp}
-              onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, '').slice(0, 6))}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-            />
-
-            {message ? (
-              <View style={[styles.messageBox, messageType === 'error' ? styles.errorBox : styles.successBox]}>
-                <Feather
-                  name={messageType === 'error' ? 'alert-circle' : 'check-circle'}
-                  size={14}
-                  color={messageType === 'error' ? Colors.error : Colors.success}
-                />
-                <Text style={[styles.messageText, messageType === 'error' ? styles.errorText : styles.successText]}>
-                  {message}
-                </Text>
-              </View>
-            ) : null}
-
-            <Button
-              title="Verify Code"
-              onPress={handleVerify}
-              loading={isVerifying}
-              disabled={!otp}
-              style={{ width: '100%' }}
-            />
-
-            <View style={{ height: 12 }} />
-
-            <Button
-              title={canResend ? 'Resend Code' : `Resend in ${countdown}s`}
-              onPress={handleResend}
-              variant="secondary"
-              disabled={!canResend || isSending}
-              style={{ width: '100%' }}
-            />
-          </>
-        )}
-      </View>
-    </Pressable>
+      </Pressable>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.parchment,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -249,18 +254,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   backButton: {
-    position: 'absolute',
-    top: -60,
-    left: -8,
+    alignSelf: 'flex-start',
     width: 40,
     height: 40,
     justifyContent: 'center',
+    marginBottom: 16,
   },
   iconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.green100,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -268,19 +272,19 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 26,
-    color: Colors.soil,
+    color: Colors.textOnDark,
     textAlign: 'center',
     marginBottom: 12,
   },
   body: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
-    color: Colors.bark,
+    color: Colors.textOnDark,
     textAlign: 'center',
     marginBottom: 8,
   },
   emailPill: {
-    backgroundColor: Colors.linen,
+    backgroundColor: 'rgba(237,231,218,0.35)',
     borderRadius: 999,
     paddingVertical: 8,
     paddingHorizontal: 20,
@@ -289,7 +293,16 @@ const styles = StyleSheet.create({
   emailText: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 14,
-    color: Colors.soil,
+    color: Colors.textOnDark,
+  },
+  wrongEmail: {
+    marginBottom: 24,
+  },
+  wrongEmailText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: Colors.green300,
+    textDecorationLine: 'underline',
   },
   otpInput: {
     backgroundColor: Colors.card,

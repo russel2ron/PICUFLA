@@ -6,6 +6,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { z } from 'zod';
+import AuthLayout from '../components/AuthLayout';
 import { Colors } from '../constants/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -79,81 +80,81 @@ export default function EmailLoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={Keyboard.dismiss}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Feather name="arrow-left" size={22} color={Colors.soil} />
-          </TouchableOpacity>
-
-          <Text style={styles.title}>Welcome!</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
-
-          <View style={styles.form}>
-            <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-
-            <Input
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-
-            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotLink}>
-              <Text style={styles.forgotLinkText}>Forgot password?</Text>
+    <AuthLayout>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Pressable onPress={Keyboard.dismiss}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Feather name="arrow-left" size={22} color={Colors.textOnDark} />
             </TouchableOpacity>
 
-            {cooldownSeconds > 0 ? (
-              <View style={styles.cooldownBox}>
-                <Feather name="clock" size={14} color={Colors.terra} />
-                <Text style={styles.cooldownText}>Too many attempts. Try again in {cooldownSeconds}s</Text>
-              </View>
-            ) : null}
+            <Text style={styles.title}>Welcome!</Text>
+            <Text style={styles.subtitle}>Sign in to your account</Text>
 
-            {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+            <View style={styles.form}>
+              <Input
+                label="Email"
+                labelLight
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
 
-            <Button
-              title="Sign In"
-              onPress={handleLogin}
-              loading={isSubmitting}
-              disabled={cooldownSeconds > 0}
-              style={styles.submitButtonSpacing}
-            />
+              <Input
+                label="Password"
+                labelLight
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Enter your password"
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
-            <TouchableOpacity onPress={() => navigation.navigate('EmailRegister')}>
-              <Text style={styles.switchLink}>
-                Don't have an account? <Text style={styles.switchLinkBold}>Create one</Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotLink}>
+                <Text style={styles.forgotLinkText}>Forgot password?</Text>
+              </TouchableOpacity>
+
+              {cooldownSeconds > 0 ? (
+                <View style={styles.cooldownBox}>
+                  <Feather name="clock" size={14} color={Colors.terra} />
+                  <Text style={styles.cooldownText}>Too many attempts. Try again in {cooldownSeconds}s</Text>
+                </View>
+              ) : null}
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <Button
+                title="Sign In"
+                onPress={handleLogin}
+                loading={isSubmitting}
+                disabled={cooldownSeconds > 0}
+                style={styles.submitButtonSpacing}
+              />
+
+              <TouchableOpacity onPress={() => navigation.navigate('EmailRegister')}>
+                <Text style={styles.switchLink}>
+                  Don't have an account? <Text style={styles.switchLinkBold}>Create one</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.parchment,
-  },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 60,
@@ -168,13 +169,13 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 28,
-    color: Colors.soil,
+    color: Colors.textOnDark,
     marginBottom: 4,
   },
   subtitle: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
-    color: Colors.bark,
+    color: Colors.textOnDark,
     marginBottom: 28,
   },
   form: {
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
   forgotLinkText: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 13,
-    color: Colors.green700,
+    color: Colors.green300,
   },
   submitButtonSpacing: {
     marginTop: 8,
@@ -225,12 +226,12 @@ const styles = StyleSheet.create({
   switchLink: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 14,
-    color: Colors.bark,
+    color: Colors.textOnDark,
     textAlign: 'center',
     marginTop: 4,
   },
   switchLinkBold: {
     fontFamily: 'DMSans_600SemiBold',
-    color: Colors.green700,
+    color: Colors.green300,
   },
 });

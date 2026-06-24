@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import { View, Text, Animated, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 
 interface OfflineBannerProps {
@@ -8,11 +9,13 @@ interface OfflineBannerProps {
 }
 
 export default function OfflineBanner({ lastSynced, visible }: OfflineBannerProps) {
-  const slideAnim = useRef(new Animated.Value(-40)).current;
+  const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(-60)).current;
+  const topPadding = Platform.OS === 'ios' ? insets.top : 0;
 
   useEffect(() => {
     Animated.timing(slideAnim, {
-      toValue: visible ? 0 : -40,
+      toValue: visible ? 0 : -60,
       duration: 300,
       useNativeDriver: true,
     }).start();
@@ -34,7 +37,7 @@ export default function OfflineBanner({ lastSynced, visible }: OfflineBannerProp
 
   return (
     <Animated.View
-      style={[styles.banner, { transform: [{ translateY: slideAnim }] }]}
+      style={[styles.banner, { paddingTop: topPadding, transform: [{ translateY: slideAnim }] }]}
       accessibilityRole="alert"
       accessibilityLabel={`Offline. Last synced ${syncText}`}
     >

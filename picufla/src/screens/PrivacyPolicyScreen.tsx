@@ -1,8 +1,7 @@
 import React from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, SafeAreaView,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
 import Header from '../components/Header';
@@ -14,7 +13,7 @@ type Props = {
 
 export default function PrivacyPolicyScreen({ navigation }: Props) {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Header title="Privacy Policy" onBack={() => navigation.goBack()} />
 
       <ScrollView
@@ -63,7 +62,7 @@ export default function PrivacyPolicyScreen({ navigation }: Props) {
           For privacy concerns: privacy@picufla.app
         </Text>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

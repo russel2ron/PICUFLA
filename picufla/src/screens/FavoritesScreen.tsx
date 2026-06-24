@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList, Image, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, FlatList, Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -86,6 +86,9 @@ export default function FavoritesScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={Colors.soil} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Favorites</Text>
       </View>
 
@@ -116,9 +119,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.parchment,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.linen,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontFamily: 'DMSerifDisplay_400Regular',

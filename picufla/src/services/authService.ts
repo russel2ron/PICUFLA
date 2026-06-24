@@ -2,7 +2,7 @@ import { File } from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from './supabase';
 import { getErrorMessage } from '../utils/errorHandler';
-import type { AppUser, Gender } from '../types';
+import type { AppUser } from '../types';
 
 export const authService = {
 
@@ -91,7 +91,6 @@ export const authService = {
   async updateProfile(userId: string, updates: {
     display_name?: string;
     photo_url?: string | null;
-    gender?: Gender | null;
     bio?: string | null;
     setup_complete?: boolean;
   }): Promise<void> {

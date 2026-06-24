@@ -4,8 +4,14 @@ import { permissionService } from './permissionService';
 import type { Reminder } from '../types';
 
 async function getExpoPushToken(): Promise<string> {
-  const token = await Notifications.getExpoPushTokenAsync();
-  return token.data;
+  try {
+    const token = await Notifications.getExpoPushTokenAsync();
+    return token.data;
+  } catch {
+    throw new Error(
+      'Push notifications are not configured. Please set up your EAS project ID in app.json (extra.eas.projectId) to use reminders.'
+    );
+  }
 }
 
 async function scheduleLocalNotification(reminder: {

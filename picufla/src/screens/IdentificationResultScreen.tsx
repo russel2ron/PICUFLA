@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
-  Animated, PanResponder, Dimensions,
+  Animated, PanResponder, Dimensions, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -9,6 +9,7 @@ import { Colors } from '../constants/colors';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import SectionLabel from '../components/SectionLabel';
 import { useAuthStore } from '../store/authStore';
 import { identificationService } from '../services/identificationService';
 import { plantService } from '../services/plantService';
@@ -32,20 +33,6 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
   const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [displayLocation, setDisplayLocation] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (imageSource === 'gallery') return;
-    (async () => {
-      try {
-        const locPermission = await Location.requestForegroundPermissionsAsync();
-        if (locPermission.granted) {
-          const pos = await Location.getCurrentPositionAsync({});
-          const label = await plantService.getLocationLabel(pos.coords.latitude, pos.coords.longitude);
-          setDisplayLocation(label);
-        }
-      } catch {}
-    })();
-  }, [imageSource]);
 
   const imageHeight = useRef(new Animated.Value(220)).current;
   const lastImageHeight = useRef(220);
@@ -142,6 +129,7 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             locationLat = pos.coords.latitude;
             locationLng = pos.coords.longitude;
             locationLabel = await plantService.getLocationLabel(locationLat, locationLng);
+            setDisplayLocation(locationLabel);
           }
         } catch {}
       }
@@ -181,43 +169,34 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             </View>
           )}
         </Animated.View>
-        {identified && (
-          <View style={styles.dragHandle} {...panResponder.panHandlers}>
-            <View style={styles.dragOval}>
-              <Text style={styles.dragDots}>⋮</Text>
-            </View>
-          </View>
-        )}
       </View>
       {!identified && (
         <View style={styles.notIdentifiedPanel}>
           <Text style={styles.notIdentifiedPanelText}>
             We could not identify this plant. Try taking another photo with better lighting.
           </Text>
-          <TouchableOpacity
-            style={styles.retakeButton}
-            onPress={() => navigation.navigate('Scan')}
-            activeOpacity={0.8}
-          >
-            <Feather name="camera" size={18} color={Colors.textOnDark} />
-            <Text style={styles.retakeButtonText}>Retake Photo</Text>
-          </TouchableOpacity>
+          <Button title="Retake Photo" onPress={() => navigation.navigate('Scan')} />
         </View>
       )}
 
       {identified && (
         <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} bounces={false}>
-          <Text style={styles.commonName}>{activeResult.common_name}</Text>
-          <Text style={styles.scientificName}>{activeResult.scientific_name}</Text>
-
-          <View style={styles.tagPillsRow}>
-            <View style={styles.tagPill}>
-              <Text style={styles.tagPillText}>{activeResult.care_watering}</Text>
-            </View>
-            <View style={styles.tagPill}>
-              <Text style={styles.tagPillText}>{activeResult.care_sunlight}</Text>
-            </View>
+          <View style={styles.dragHandle} {...panResponder.panHandlers}>
+            <View style={styles.dragOval} />
           </View>
+          <Text style={styles.commonName} numberOfLines={2}>{activeResult.common_name}</Text>
+          <Text style={styles.scientificName} numberOfLines={1}>{activeResult.scientific_name}</Text>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagPillsScroll}>
+            <View style={styles.tagPillsRow}>
+              <View style={styles.tagPill}>
+                <Text style={styles.tagPillText}>{activeResult.care_watering}</Text>
+              </View>
+              <View style={styles.tagPill}>
+                <Text style={styles.tagPillText}>{activeResult.care_sunlight}</Text>
+              </View>
+            </View>
+          </ScrollView>
 
           {activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && (
             <View style={styles.alternativesSection}>
@@ -254,7 +233,7 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             </View>
           )}
 
-          <Text style={styles.sectionLabel}>Care Guide</Text>
+          <SectionLabel label="Care Guide" />
           <View style={styles.careBook}>
             <View style={styles.careBookRow}>
               <View style={styles.careBookIcon}>
@@ -287,7 +266,7 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Notes</Text>
+          <SectionLabel label="Notes" />
           <Input
             value={notes}
             onChangeText={setNotes}
@@ -300,6 +279,13 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             <Text style={styles.locationText}>{displayLocation || 'Location not recorded'}</Text>
           </View>
         </ScrollView>
+      )}
+
+      {isSaving && (
+        <View style={styles.savingOverlay}>
+          <ActivityIndicator size="large" color={Colors.textOnDark} />
+          <Text style={styles.savingText}>Saving to collection…</Text>
+        </View>
       )}
 
       {identified && (
@@ -328,13 +314,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.soil,
   },
+  savingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+    gap: 16,
+  },
+  savingText: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 18,
+    color: Colors.textOnDark,
+  },
   heroWrapper: {
     position: 'relative',
     zIndex: 5,
+    overflow: 'visible',
   },
   heroSection: {
     position: 'relative',
-    overflow: 'hidden',
   },
   heroImage: {
     width: '100%',
@@ -342,35 +342,15 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   dragHandle: {
-    position: 'absolute',
-    bottom: -16,
-    left: 0,
-    right: 0,
     alignItems: 'center',
-    zIndex: 10,
-    height: 40,
-    justifyContent: 'flex-start',
+    paddingVertical: 8,
+    marginBottom: 4,
   },
   dragOval: {
-    width: 52,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.linen,
-    borderWidth: 1.5,
-    borderColor: Colors.stone,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  dragDots: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 16,
-    color: Colors.bark,
-    lineHeight: 18,
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.stone,
   },
   detailsScroll: {
     flex: 1,
@@ -378,7 +358,7 @@ const styles = StyleSheet.create({
   },
   detailsContent: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 24,
     paddingBottom: 120,
   },
   notIdentifiedOverlay: {
@@ -394,13 +374,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   notIdentifiedPanel: {
+    flex: 1,
     backgroundColor: Colors.linen,
     padding: 24,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
+    paddingTop: 32,
     alignItems: 'center',
     gap: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
+    zIndex: 2,
   },
   notIdentifiedPanelText: {
     fontFamily: 'DMSans_400Regular',
@@ -408,22 +391,6 @@ const styles = StyleSheet.create({
     color: Colors.bark,
     textAlign: 'center',
     lineHeight: 24,
-  },
-  retakeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.green700,
-    borderRadius: 14,
-    height: 50,
-    paddingHorizontal: 28,
-    gap: 8,
-    width: '100%',
-  },
-  retakeButtonText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 16,
-    color: Colors.textOnDark,
   },
   confidenceBadge: {
     position: 'absolute',
@@ -435,15 +402,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.soil,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 3,
-  },
-  confidenceText: {
-    fontFamily: 'DMSans_600SemiBold',
-    fontSize: 13,
   },
   commonName: {
     fontFamily: 'DMSerifDisplay_400Regular',
@@ -530,14 +493,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.green700,
   },
-  sectionLabel: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 14,
-    color: Colors.bark,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
   careBook: {
     backgroundColor: Colors.card,
     borderRadius: 12,
@@ -580,7 +535,7 @@ const styles = StyleSheet.create({
   },
   careBookDivider: {
     height: 1,
-    backgroundColor: Colors.stone + '60',
+    backgroundColor: Colors.stone,
     marginHorizontal: 16,
   },
   locationRow: {
@@ -599,14 +554,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
+    justifyContent: 'center',
     padding: 16,
     paddingBottom: 36,
     gap: 12,
     backgroundColor: Colors.parchment,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    shadowColor: Colors.soil,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
   },
   bottomBtnHalf: {
-    flex: 1,
+    width: 140,
+  },
+  tagPillsScroll: {
+    marginBottom: 20,
   },
 });

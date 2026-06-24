@@ -5,6 +5,7 @@ import { Colors } from '../constants/colors';
 
 interface InputProps {
   label?: string;
+  labelLight?: boolean;
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
@@ -25,6 +26,7 @@ interface InputProps {
 
 export default function Input({
   label,
+  labelLight,
   value,
   onChangeText,
   placeholder,
@@ -51,7 +53,7 @@ export default function Input({
   return (
     <View style={styles.wrapper}>
       {label && (
-        <Text style={styles.label} accessibilityRole="text">
+        <Text style={[styles.label, labelLight && styles.labelLight]} accessibilityRole="text">
           {label}
         </Text>
       )}
@@ -133,6 +135,9 @@ const styles = StyleSheet.create({
     color: Colors.soil,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
+  },
+  labelLight: {
+    color: Colors.textOnDark,
   },
   inputRow: {
     position: 'relative' as const,

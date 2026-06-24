@@ -22,9 +22,10 @@ interface ResendState {
 type Props = {
   email: string;
   onVerified: () => void;
+  onBack?: () => void;
 };
 
-export default function SignupOtpScreen({ email, onVerified }: Props) {
+export default function SignupOtpScreen({ email, onVerified, onBack }: Props) {
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -161,6 +162,11 @@ export default function SignupOtpScreen({ email, onVerified }: Props) {
         <View style={styles.emailPill}>
           <Text style={styles.emailText}>{email}</Text>
         </View>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} style={styles.wrongEmail}>
+            <Text style={styles.wrongEmailText}>Wrong email? Go back</Text>
+          </TouchableOpacity>
+        )}
 
         <TextInput
           style={styles.otpInput}
@@ -182,6 +188,8 @@ export default function SignupOtpScreen({ email, onVerified }: Props) {
         ) : null}
 
         <Button title="Verify Code" onPress={handleVerify} loading={isVerifying} disabled={!otp} />
+
+        <View style={{ height: 32 }} />
 
         <Button
           title={canResend ? 'Resend Code' : `Resend in ${countdown}s`}
@@ -242,6 +250,15 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_500Medium',
     fontSize: 14,
     color: Colors.soil,
+  },
+  wrongEmail: {
+    marginBottom: 24,
+  },
+  wrongEmailText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: Colors.green700,
+    textDecorationLine: 'underline',
   },
   otpInput: {
     backgroundColor: Colors.card,

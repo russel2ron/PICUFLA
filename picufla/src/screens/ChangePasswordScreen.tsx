@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AuthLayout from '../components/AuthLayout';
 import { Colors } from '../constants/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -62,7 +63,7 @@ export default function ChangePasswordScreen({ navigation }: Props) {
 
   if (isDone) {
     return (
-      <View style={styles.container}>
+      <AuthLayout>
         <View style={styles.doneContent}>
           <View style={styles.iconCircle}>
             <Feather name="check" size={32} color={Colors.green700} />
@@ -75,72 +76,70 @@ export default function ChangePasswordScreen({ navigation }: Props) {
             style={{ width: '100%' }}
           />
         </View>
-      </View>
+      </AuthLayout>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={Keyboard.dismiss}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Feather name="arrow-left" size={22} color={Colors.soil} />
-          </TouchableOpacity>
+    <AuthLayout>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Pressable onPress={Keyboard.dismiss}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Feather name="arrow-left" size={22} color={Colors.textOnDark} />
+            </TouchableOpacity>
 
-          <View style={styles.iconCircle}>
-            <Feather name="lock" size={28} color={Colors.green700} />
-          </View>
+            <View style={styles.iconCircle}>
+              <Feather name="lock" size={28} color={Colors.green700} />
+            </View>
 
-          <Text style={styles.title}>Create New Password</Text>
-          <Text style={styles.subtitle}>Choose a strong password for your account.</Text>
+            <Text style={styles.title}>Create New Password</Text>
+            <Text style={styles.subtitle}>Choose a strong password for your account.</Text>
 
-          <View style={styles.form}>
-            <Input
-              label="New Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Min 8 chars: uppercase, lowercase & number"
-              secureTextEntry
-              autoCapitalize="none"
-            />
+            <View style={styles.form}>
+              <Input
+                label="New Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Min 8 chars: uppercase, lowercase & number"
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
-            <Input
-              label="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Re-enter your password"
-              secureTextEntry
-              autoCapitalize="none"
-            />
+              <Input
+                label="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Re-enter your password"
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
-            {error ? (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={14} color={Colors.error} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Feather name="alert-circle" size={14} color={Colors.error} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
 
-            <Button
-              title="Update Password"
-              onPress={handleChangePassword}
-              loading={isSubmitting}
-              style={styles.submitSpacing}
-            />
-          </View>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <Button
+                title="Update Password"
+                onPress={handleChangePassword}
+                loading={isSubmitting}
+                style={styles.submitSpacing}
+              />
+            </View>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.parchment,
-  },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 60,
@@ -163,7 +162,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.green100,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -171,21 +170,21 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 28,
-    color: Colors.soil,
+    color: Colors.textOnDark,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
-    color: Colors.bark,
+    color: Colors.textOnDark,
     lineHeight: 22,
     marginBottom: 32,
   },
   body: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 14,
-    color: Colors.bark,
+    color: Colors.textOnDark,
     textAlign: 'center',
     lineHeight: 20,
   },

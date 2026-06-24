@@ -1,5 +1,3 @@
-export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
-
 export interface AppUser {
   id: string;
   email: string;
@@ -11,7 +9,6 @@ export interface AppUser {
   notifications_enabled: boolean;
   is_deleted: boolean;
   deleted_at: string | null;
-  gender: Gender | null;
   bio: string | null;
   setup_complete: boolean;
 }
@@ -103,7 +100,6 @@ export type RootStackParamList = {
   Login: undefined;
   EmailRegister: undefined;
   EmailLogin: undefined;
-  VerifyEmail: { email: string };
   VerifyOtp: { email: string; purpose?: 'password_reset' | 'signup' };
   SetupProfile: undefined;
   ForgotPassword: undefined;
@@ -120,6 +116,7 @@ export type CollectionStackParamList = {
   Collection: undefined;
   PlantDetail: { userPlantId: string };
   Reminders: { userPlantId: string; commonName: string };
+  Favorites: undefined;
 };
 
 export type ScanStackParamList = {

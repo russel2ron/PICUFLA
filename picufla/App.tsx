@@ -19,6 +19,7 @@ import OtpReauthScreen, { getLastOtpTime, isOtpExpired } from './src/screens/Otp
 import SignupOtpScreen from './src/screens/SignupOtpScreen';
 import { Colors } from './src/constants/colors';
 import { useAuthStore } from './src/store/authStore';
+import { authService } from './src/services/authService';
 import { otpStorage } from './src/services/otpStorage';
 import { useAppStore } from './src/store/appStore';
 
@@ -119,6 +120,11 @@ function RootNavigator() {
         onVerified={() => {
           setPendingOtpEmail(null);
           setNeedsSignupOtp(null);
+        }}
+        onBack={() => {
+          setNeedsSignupOtp(null);
+          setPendingOtpEmail(null);
+          authService.logout().catch(() => {});
         }}
       />
     );

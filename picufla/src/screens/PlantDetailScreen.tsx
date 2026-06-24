@@ -1,16 +1,18 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator,
-  Alert, TextInput,
+  Alert, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
+import { Theme } from '../constants/theme';
 import { Config } from '../constants/config';
 import Badge from '../components/Badge';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingScreen from '../components/LoadingScreen';
+import SectionLabel from '../components/SectionLabel';
 import { supabase } from '../services/supabase';
 import { plantService } from '../services/plantService';
 import type { CollectionStackParamList, UserPlant } from '../types';
@@ -190,7 +192,12 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <ScrollView bounces={false} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+      <ScrollView bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.heroSection}>
           {plant.captured_image_url ? (
             <Image source={{ uri: plant.captured_image_url }} style={styles.heroImage} />
@@ -206,7 +213,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
 
           <TouchableOpacity style={styles.favoriteButton} onPress={handleToggleFavorite} activeOpacity={0.7}>
             <Feather
-              name={isFavorite ? 'heart' : 'heart'}
+              name="heart"
               size={18}
               color={isFavorite ? Colors.blushDark : Colors.textOnDark}
               style={isFavorite ? undefined : { opacity: 0.8 }}
@@ -223,16 +230,16 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
 
         <View style={styles.body}>
           <View style={styles.nameSection}>
-            <Text style={styles.commonName}>{p.common_name}</Text>
+            <Text style={styles.commonName} numberOfLines={2}>{p.common_name}</Text>
             <View style={styles.scientificRow}>
-              <Text style={styles.scientificName}>{p.scientific_name}</Text>
+              <Text style={styles.scientificName} numberOfLines={1}>{p.scientific_name}</Text>
               <Badge variant="confidence" confidence={plant.confidence_score} />
             </View>
           </View>
 
-          <Text style={styles.description}>{p.description}</Text>
+          <Text style={styles.description} numberOfLines={4}>{p.description}</Text>
 
-          <Text style={styles.sectionLabel}>Care Guide</Text>
+          <SectionLabel label="Care Guide" />
           <View style={styles.careList}>
             {[
               { icon: 'droplet' as const, label: 'WATERING', value: p.care_watering },
@@ -252,7 +259,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>My Notes</Text>
+          <SectionLabel label="My Notes" />
           <View style={styles.notesCard}>
             {notesEditing ? (
               <>
@@ -293,7 +300,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
             )}
           </View>
 
-          <Text style={styles.sectionLabel}>Tags</Text>
+          <SectionLabel label="Tags" />
           <View style={styles.tagsWrap}>
             {tags.map((tag) => (
               <View key={tag} style={styles.tagChip}>
@@ -337,7 +344,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
             )}
           </View>
 
-          <Text style={styles.sectionLabel}>Reminders</Text>
+          <SectionLabel label="Reminders" />
           <TouchableOpacity
             style={styles.reminderCard}
             onPress={() => navigation.navigate('Reminders', { userPlantId: plant.id, commonName: p.common_name })}
@@ -355,6 +362,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -400,7 +408,7 @@ const styles = StyleSheet.create({
     left: 16,
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Theme.radius.full,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -411,7 +419,7 @@ const styles = StyleSheet.create({
     right: 16,
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Theme.radius.full,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -424,7 +432,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 16,
+    borderRadius: Theme.radius.full,
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
@@ -463,13 +471,6 @@ const styles = StyleSheet.create({
     color: Colors.bark,
     lineHeight: 21,
     marginBottom: 2,
-  },
-  sectionLabel: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 11,
-    color: Colors.bark,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   careList: {
     backgroundColor: Colors.card,
@@ -523,7 +524,7 @@ const styles = StyleSheet.create({
   },
   notesText: {
     flex: 1,
-    fontFamily: 'DMSerifDisplay_400Regular',
+    fontFamily: 'DMSans_400Regular',
     fontSize: 13,
     fontStyle: 'italic',
     color: Colors.bark,

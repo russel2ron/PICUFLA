@@ -8,6 +8,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import CollectionScreen from '../screens/CollectionScreen';
 import PlantDetailScreen from '../screens/PlantDetailScreen';
 import ReminderScreen from '../screens/ReminderScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
 import ScanScreen from '../screens/ScanScreen';
 import IdentificationResultScreen from '../screens/IdentificationResultScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -32,6 +33,7 @@ function CollectionStackScreen() {
         <CollectionStack.Screen name="Collection" component={CollectionScreen} />
         <CollectionStack.Screen name="PlantDetail" component={PlantDetailScreen} />
         <CollectionStack.Screen name="Reminders" component={ReminderScreen} />
+        <CollectionStack.Screen name="Favorites" component={FavoritesScreen} />
       </CollectionStack.Navigator>
     </View>
   );

@@ -10,6 +10,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../constants/colors';
 import Button from '../components/Button';
+import SectionLabel from '../components/SectionLabel';
 import { StorageKeys } from '../constants/storage';
 import { useAuthStore } from '../store/authStore';
 import { useAppStore } from '../store/appStore';
@@ -177,7 +178,7 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Preferences</Text>
+          <SectionLabel label="Preferences" />
           <View style={styles.sectionCard}>
             <View style={styles.settingRow}>
               <View style={[styles.iconChip, { backgroundColor: Colors.green100 }]}>
@@ -234,7 +235,7 @@ export default function ProfileScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Account</Text>
+          <SectionLabel label="Account" />
           <View style={styles.sectionCard}>
             <TouchableOpacity
               style={styles.settingRow}
@@ -386,15 +387,6 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 16,
     marginBottom: 12,
-  },
-  sectionLabel: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 11,
-    color: Colors.bark,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginLeft: 2,
   },
   sectionCard: {
     backgroundColor: Colors.card,

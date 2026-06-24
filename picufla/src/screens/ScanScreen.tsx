@@ -1,17 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Linking, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Linking, Modal, ActivityIndicator } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
-import * as Location from 'expo-location';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../constants/colors';
+import { Theme } from '../constants/theme';
 import Button from '../components/Button';
-import LoadingScreen from '../components/LoadingScreen';
 import ScanOverlay from '../components/ScanOverlay';
-import { Config } from '../constants/config';
 import { StorageKeys } from '../constants/storage';
 import { permissionService, PermissionStatus } from '../services/permissionService';
 import { identificationService } from '../services/identificationService';
@@ -47,9 +45,10 @@ function PermissionDeniedView() {
 export default function ScanScreen({ navigation }: Props) {
   const [viewState, setViewState] = useState<ViewState>('viewfinder');
   const [cameraPermission, setCameraPermission] = useState<PermissionStatus>('undetermined');
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [cameraReady, setCameraReady] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<'camera' | 'gallery' | null>(null);
-  const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tipsVisible, setTipsVisible] = useState(false);
   const [remainingCount, setRemainingCount] = useState(RATE_LIMIT);
@@ -101,8 +100,18 @@ export default function ScanScreen({ navigation }: Props) {
         const newStatus = await permissionService.requestCamera();
         setCameraPermission(newStatus);
       }
+      setPermissionsLoading(false);
     })();
   }, []);
+
+  if (permissionsLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.soil, gap: 16 }}>
+        <ActivityIndicator size="large" color={Colors.textOnDark} />
+        <Text style={{ fontFamily: 'DMSerifDisplay_400Regular', fontSize: 18, color: Colors.textOnDark }}>Preparing camera…</Text>
+      </View>
+    );
+  }
 
   if (cameraPermission === 'denied') {
     return <PermissionDeniedView />;
@@ -110,37 +119,20 @@ export default function ScanScreen({ navigation }: Props) {
 
   const handleTakePhoto = async () => {
     if (remainingCount === 0) { setLimitModalVisible(true); return; }
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || !cameraReady) return;
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 1 });
       setCapturedUri(photo.uri);
       setImageSource('camera');
       setViewState('preview');
       setErrorMessage(null);
-    } catch {}
+    } catch {
+      setErrorMessage('Failed to take photo. Please try again.');
+    }
   };
 
   const handleIdentify = async () => {
     if (!capturedUri) return;
-
-    (async () => {
-      try {
-        const locStatus = await permissionService.getLocationStatus();
-        if (locStatus === 'undetermined') {
-          await permissionService.requestLocation();
-        }
-        const updatedStatus = await permissionService.getLocationStatus();
-        if (updatedStatus === 'granted') {
-          const pos = await Location.getCurrentPositionAsync({});
-          const address = await Location.reverseGeocodeAsync(pos.coords);
-          if (address.length > 0) {
-            const a = address[0];
-            const parts = [a.city, a.region, a.country].filter(Boolean);
-            setLocationLabel(parts.join(', ') || 'Unknown location');
-          }
-        }
-      } catch {}
-    })();
 
     setViewState('identifying');
     setErrorMessage(null);
@@ -196,21 +188,20 @@ export default function ScanScreen({ navigation }: Props) {
     <View style={styles.container}>
       {viewState === 'viewfinder' && (
         <>
-          <CameraView ref={cameraRef} style={styles.camera} facing="back" flash={flash}>
-            <ScanOverlay />
-            <View style={styles.topChips}>
-              <TouchableOpacity style={styles.topChip} onPress={cycleFlash} activeOpacity={0.7}>
-                <Feather name={FLASH_ICONS[flash]} size={14} color={Colors.textOnDark} />
-                <Text style={styles.topChipText}>{FLASH_LABELS[flash]}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.topChip} onPress={() => setTipsVisible(true)} activeOpacity={0.7}>
-                <Feather name="info" size={14} color={Colors.textOnDark} />
-                <Text style={styles.topChipText}>Tips</Text>
-              </TouchableOpacity>
-            </View>
-          </CameraView>
+          <CameraView ref={cameraRef} style={styles.camera} facing="back" flash={flash} onCameraReady={() => setCameraReady(true)} onMountError={(e) => setErrorMessage(e.message)} />
+          <ScanOverlay />
+          <View style={styles.topChips}>
+            <TouchableOpacity style={styles.topChip} onPress={cycleFlash} activeOpacity={0.7}>
+              <Feather name={FLASH_ICONS[flash]} size={14} color={Colors.textOnDark} />
+              <Text style={styles.topChipText}>{FLASH_LABELS[flash]}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.topChip} onPress={() => setTipsVisible(true)} activeOpacity={0.7}>
+              <Feather name="info" size={14} color={Colors.textOnDark} />
+              <Text style={styles.topChipText}>Tips</Text>
+            </TouchableOpacity>
+          </View>
 
-          <BlurView intensity={80} tint="dark" style={styles.bottomPanel}>
+            <BlurView intensity={80} tint="dark" style={styles.bottomPanel}>
             <Text style={styles.panelTitle}>Identify a Plant</Text>
             <Text style={styles.panelSubtitle}>Frame the plant clearly. Works best in natural light.</Text>
 
@@ -228,22 +219,13 @@ export default function ScanScreen({ navigation }: Props) {
                 activeOpacity={0.8}
                 disabled={remainingCount === 0}
               />
-              <TouchableOpacity
-                style={styles.galleryButton}
-                onPress={cycleFlash}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={styles.galleryButton} onPress={cycleFlash} activeOpacity={0.8}>
                 <Feather name={FLASH_ICONS[flash]} size={22} color={Colors.textOnDark} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.locationRow}>
-              <Feather name="map-pin" size={13} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.locationText}>{locationLabel || 'Location off'}</Text>
-            </View>
-
             <View style={[styles.remainingChip, remainingCount === 0 && styles.remainingChipEmpty]}>
-              <Feather name="activity" size={12} color={remainingCount === 0 ? '#B85450' : 'rgba(255,255,255,0.7)'} />
+              <Feather name="activity" size={12} color={remainingCount === 0 ? Colors.error : 'rgba(255,255,255,0.7)'} />
               <Text style={[styles.remainingText, remainingCount === 0 && styles.remainingTextEmpty]}>
                 {remainingCount}/{RATE_LIMIT} identifications remaining
               </Text>
@@ -255,15 +237,15 @@ export default function ScanScreen({ navigation }: Props) {
       {viewState === 'preview' && capturedUri && (
         <View style={styles.previewContainer}>
           <Image source={{ uri: capturedUri }} style={styles.previewImage} />
-          <BlurView intensity={80} tint="dark" style={styles.previewBottomBar}>
-            <Button title="Retake" onPress={handleRetake} variant="secondary" style={styles.previewBtn} />
-            <Button title="Identify" onPress={handleIdentify} disabled={remainingCount === 0} style={styles.previewBtn} />
-          </BlurView>
           {errorMessage ? (
             <View style={styles.previewErrorBox}>
               <Text style={styles.previewErrorText}>{errorMessage}</Text>
             </View>
           ) : null}
+          <BlurView intensity={80} tint="dark" style={styles.previewBottomBar}>
+            <Button title="Retake" onPress={handleRetake} variant="secondary" style={styles.previewBtn} />
+            <Button title="Identify" onPress={handleIdentify} disabled={remainingCount === 0} style={styles.previewBtn} />
+          </BlurView>
         </View>
       )}
 
@@ -271,7 +253,8 @@ export default function ScanScreen({ navigation }: Props) {
         <View style={styles.identifyingContainer}>
           <Image source={{ uri: capturedUri }} style={styles.identifyingImage} />
           <View style={styles.identifyingOverlay}>
-            <LoadingScreen message="Identifying your plant…" />
+            <ActivityIndicator size="large" color={Colors.textOnDark} />
+            <Text style={styles.identifyingText}>Identifying your plant…</Text>
           </View>
         </View>
       )}
@@ -342,7 +325,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 20,
+    borderRadius: Theme.radius.full,
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
@@ -356,13 +339,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: Theme.radius.lg,
+    borderTopRightRadius: Theme.radius.lg,
     padding: 24,
     paddingBottom: 40,
     alignItems: 'center',
     gap: 10,
-    overflow: 'hidden',
+    zIndex: 10,
   },
   panelTitle: {
     fontFamily: 'DMSerifDisplay_400Regular',
@@ -391,7 +374,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.textOnDark,
     borderWidth: 4,
     borderColor: 'rgba(255,255,255,0.3)',
-    shadowColor: '#000',
+    shadowColor: Colors.soil,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -412,16 +395,6 @@ const styles = StyleSheet.create({
   },
   galleryButtonDisabled: {
     opacity: 0.4,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  locationText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
   },
   remainingChip: {
     flexDirection: 'row',
@@ -457,12 +430,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    padding: 20,
+    justifyContent: 'center',
     gap: 12,
+    padding: 20,
     paddingBottom: 40,
+    borderTopLeftRadius: Theme.radius.lg,
+    borderTopRightRadius: Theme.radius.lg,
   },
   previewBtn: {
-    flex: 1,
+    width: 140,
   },
   previewErrorBox: {
     position: 'absolute',
@@ -489,9 +465,15 @@ const styles = StyleSheet.create({
   },
   identifyingOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 16,
+  },
+  identifyingText: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 18,
+    color: Colors.textOnDark,
   },
   modalOverlay: {
     flex: 1,

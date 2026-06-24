@@ -39,7 +39,6 @@ export default function CollectionScreen({ navigation }: Props) {
 
   const [offline, setOffline] = useState(false);
   const [lastSync, setLastSync] = React.useState<Date | null>(null);
-  const [appState, setAppState] = React.useState(AppState.currentState);
   const [refreshing, setRefreshing] = useState(false);
 
   const filteredPlants = useMemo(
@@ -137,10 +136,9 @@ export default function CollectionScreen({ navigation }: Props) {
       .subscribe();
 
     const sub = AppState.addEventListener('change', (nextState) => {
-      if (appState.match(/inactive|background/) && nextState === 'active') {
+      if (nextState === 'active') {
         fetchPlants();
       }
-      setAppState(nextState);
     });
 
     return () => {
@@ -272,18 +270,16 @@ export default function CollectionScreen({ navigation }: Props) {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Feather name="arrow-up" size={16} color={Colors.bark} />
-        <Feather name="arrow-down" size={16} color={Colors.bark} />
       </View>
 
       <Animated.View style={[styles.statsRow, {
         opacity: statsAnim,
         transform: [{ translateX: statsAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
       }]}>
-        <View style={[styles.statChip, { backgroundColor: Colors.green100 }]}>
+        <TouchableOpacity style={[styles.statChip, { backgroundColor: Colors.green100 }]} onPress={() => navigation.navigate('Favorites')} activeOpacity={0.7}>
           <Feather name="heart" size={12} color={Colors.green700} />
           <Text style={[styles.statText, { color: Colors.green700 }]}>{stats.favorites} favorites</Text>
-        </View>
+        </TouchableOpacity>
         <View style={[styles.statChip, { backgroundColor: Colors.lavenderLight }]}>
           <Feather name="tag" size={12} color={Colors.lavender} />
           <Text style={[styles.statText, { color: Colors.lavender }]}>{stats.tags} tags</Text>
@@ -328,8 +324,6 @@ export default function CollectionScreen({ navigation }: Props) {
           data={filteredPlants}
           renderItem={renderPlant}
           keyExtractor={keyExtractor}
-          numColumns={2}
-          columnWrapperStyle={styles.plantGridRow}
           contentContainerStyle={styles.plantGrid}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -481,19 +475,15 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingTop: 0,
   },
-  plantGridRow: {
-    gap: 9,
-    marginBottom: 9,
-  },
   plantCard: {
-    flex: 1,
     backgroundColor: Colors.card,
     borderRadius: 16,
     overflow: 'hidden',
+    marginBottom: 10,
     ...Theme.shadow.sm,
   },
   plantImageArea: {
-    height: 100,
+    height: 160,
     backgroundColor: Colors.linen,
     position: 'relative',
   },

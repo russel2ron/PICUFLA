@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  Alert, TextInput, Switch, Platform, Linking,
+  Alert, TextInput, Switch, Platform, Linking, SafeAreaView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -12,6 +12,8 @@ import { Colors } from '../constants/colors';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Header from '../components/Header';
+import SectionLabel from '../components/SectionLabel';
+import EmptyState from '../components/EmptyState';
 import { useAuthStore } from '../store/authStore';
 import { reminderService } from '../services/reminderService';
 import type { CollectionStackParamList, Reminder } from '../types';
@@ -214,15 +216,16 @@ export default function ReminderScreen({ navigation, route }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Header title="Reminders" subtitle={commonName} onBack={() => navigation.goBack()} />
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionLabel}>Existing Reminders</Text>
+        <SectionLabel label="Existing Reminders" />
         {loadingReminders ? (
           <ActivityIndicator
             size="small"
@@ -230,7 +233,7 @@ export default function ReminderScreen({ navigation, route }: Props) {
             style={styles.loadingInline}
           />
         ) : reminders.length === 0 ? (
-          <Text style={styles.emptyText}>No reminders set.</Text>
+          <EmptyState icon="bell" title="No Reminders" subtitle="Add a reminder below to get started." />
         ) : (
           reminders.map((reminder) => (
             <View key={reminder.id} style={styles.reminderRow}>
@@ -275,7 +278,7 @@ export default function ReminderScreen({ navigation, route }: Props) {
         )}
 
         <View style={styles.formSection}>
-          <Text style={styles.sectionLabel}>Add a Reminder</Text>
+          <SectionLabel label="Add a Reminder" />
 
           <Text style={styles.formFieldLabel}>Care Type</Text>
           <View style={styles.segmentedRow}>
@@ -335,21 +338,37 @@ export default function ReminderScreen({ navigation, route }: Props) {
             </View>
           ) : (
             <>
-              <TouchableOpacity
-                style={styles.dateTimeButton}
-                onPress={() => setShowDatePicker(true)}
-                activeOpacity={0.7}
-              >
-                <Feather name="calendar" size={16} color={Colors.green700} />
-                <Text style={styles.dateTimeButtonText}>
-                  {selectedDate.toLocaleDateString(undefined, {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.dateTimeRow}>
+                <TouchableOpacity
+                  style={[styles.dateTimeButton, styles.dateTimeButtonHalf]}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="calendar" size={16} color={Colors.green700} />
+                  <Text style={styles.dateTimeButtonText}>
+                    {selectedDate.toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.dateTimeButton, styles.dateTimeButtonHalf]}
+                  onPress={() => setShowTimePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="clock" size={16} color={Colors.green700} />
+                  <Text style={styles.dateTimeButtonText}>
+                    {selectedDate.toLocaleTimeString(undefined, {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               {showDatePicker && (
                 <DateTimePicker
                   value={selectedDate}
@@ -359,20 +378,6 @@ export default function ReminderScreen({ navigation, route }: Props) {
                   minimumDate={new Date()}
                 />
               )}
-              <TouchableOpacity
-                style={styles.dateTimeButton}
-                onPress={() => setShowTimePicker(true)}
-                activeOpacity={0.7}
-              >
-                <Feather name="clock" size={16} color={Colors.green700} />
-                <Text style={styles.dateTimeButtonText}>
-                  {selectedDate.toLocaleTimeString(undefined, {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true,
-                  })}
-                </Text>
-              </TouchableOpacity>
               {showTimePicker && (
                 <DateTimePicker
                   value={selectedDate}
@@ -446,7 +451,7 @@ export default function ReminderScreen({ navigation, route }: Props) {
           <Button title="Save Reminder" onPress={handleSave} loading={isSaving} />
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -466,21 +471,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 0,
     paddingBottom: 40,
-  },
-  sectionLabel: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 11,
-    color: Colors.bark,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  emptyText: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 13,
-    color: Colors.bark,
-    marginBottom: 16,
   },
   reminderRow: {
     flexDirection: 'row',
@@ -553,6 +543,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dateTimeButtonHalf: {
+    flex: 1,
   },
   dateTimeButton: {
     flexDirection: 'row',

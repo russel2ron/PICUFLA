@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Keyboard, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView,
+  Platform, Keyboard, Pressable,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { z } from 'zod';
+import AuthLayout from '../components/AuthLayout';
 import { Colors } from '../constants/colors';
 import { authService } from '../services/authService';
 import { otpStorage } from '../services/otpStorage';
@@ -70,75 +71,76 @@ export default function EmailRegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={Keyboard.dismiss}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Feather name="arrow-left" size={22} color={Colors.soil} />
-          </TouchableOpacity>
+    <AuthLayout>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Pressable onPress={Keyboard.dismiss}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Feather name="arrow-left" size={22} color={Colors.textOnDark} />
+            </TouchableOpacity>
 
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Enter your details to get started</Text>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Enter your details to get started</Text>
 
-          <View style={styles.form}>
-            <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              error={errors.email}
-            />
+            <View style={styles.form}>
+              <Input
+                label="Email"
+                labelLight
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                error={errors.email}
+              />
 
-            <Input
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Min 8 chars: uppercase, lowercase & number"
-              secureTextEntry
-              autoCapitalize="none"
-              error={errors.password}
-            />
+              <Input
+                label="Password"
+                labelLight
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Min 8 chars: uppercase, lowercase & number"
+                secureTextEntry
+                autoCapitalize="none"
+                error={errors.password}
+              />
 
-            <Input
-              label="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Re-enter your password"
-              secureTextEntry
-              autoCapitalize="none"
-              error={errors.confirmPassword}
-            />
+              <Input
+                label="Confirm Password"
+                labelLight
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Re-enter your password"
+                secureTextEntry
+                autoCapitalize="none"
+                error={errors.confirmPassword}
+              />
 
-            {submitError ? (
-              <View style={styles.submitErrorBox}>
-                <Text style={styles.submitErrorText}>{submitError}</Text>
-              </View>
-            ) : null}
+              {submitError ? (
+                <View style={styles.submitErrorBox}>
+                  <Text style={styles.submitErrorText}>{submitError}</Text>
+                </View>
+              ) : null}
 
-            <Button
-              title="Create Account"
-              onPress={handleRegister}
-              loading={isSubmitting}
-              style={styles.submitButtonSpacing}
-            />
-          </View>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <Button
+                title="Create Account"
+                onPress={handleRegister}
+                loading={isSubmitting}
+                style={styles.submitButtonSpacing}
+              />
+            </View>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.parchment,
-  },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 60,
@@ -153,13 +155,13 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 28,
-    color: Colors.soil,
+    color: Colors.textOnDark,
     marginBottom: 4,
   },
   subtitle: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
-    color: Colors.bark,
+    color: Colors.textOnDark,
     marginBottom: 28,
   },
   form: {
