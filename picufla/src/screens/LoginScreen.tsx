@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Image, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AuthLayout from '../components/AuthLayout';
 import { Colors } from '../constants/colors';
@@ -11,27 +11,24 @@ type Props = {
 };
 
 export default function LoginScreen({ navigation }: Props) {
-  const logoFade = useRef(new Animated.Value(0)).current;
+  const titleFade = useRef(new Animated.Value(0)).current;
   const taglineFade = useRef(new Animated.Value(0)).current;
   const cardFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.stagger(300, [
-      Animated.timing(logoFade, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(titleFade, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.timing(taglineFade, { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.timing(cardFade, { toValue: 1, duration: 600, useNativeDriver: true }),
     ]).start();
   }, []);
 
   return (
-    <AuthLayout logoPosition="none">
+    <AuthLayout>
       <View style={styles.contentWrapper}>
-        <Animated.View style={{ opacity: logoFade, alignItems: 'center' }}>
-          <Image
-            source={require('../../assets/LOGO.png')}
-            style={styles.heroLogo}
-            resizeMode="contain"
-          />
+        <Animated.View style={{ opacity: titleFade, alignItems: 'center', marginTop: 100 }}>
+          <Text style={styles.greeting}>Welcome to</Text>
+          <Text style={styles.appName}>PICUFLA</Text>
         </Animated.View>
 
         <Animated.Text style={[styles.tagline, { opacity: taglineFade }]}>
@@ -69,16 +66,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 48,
   },
-  heroLogo: {
-    width: 300,
-    height: 108,
-    marginBottom: 40,
+  greeting: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 16,
+    color: Colors.textOnDark,
+  },
+  appName: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 36,
+    color: Colors.textOnDark,
   },
   tagline: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
     color: Colors.textOnDark,
     textAlign: 'center',
+    marginTop: 10,
     paddingHorizontal: 40,
     marginBottom: 32,
   },
