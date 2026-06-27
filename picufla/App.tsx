@@ -48,6 +48,7 @@ function RootNavigator() {
   const { session, user, isLoading } = useAuth();
   const pendingOtpEmail = useAuthStore((s) => s.pendingOtpEmail);
   const setPendingOtpEmail = useAuthStore((s) => s.setPendingOtpEmail);
+  const pendingPasswordReset = useAuthStore((s) => s.pendingPasswordReset);
   const onboardingComplete = useAppStore((s) => s.onboardingComplete);
   const loadOnboardingState = useAppStore((s) => s.loadOnboardingState);
   const [fontsLoaded] = useFonts({
@@ -130,6 +131,7 @@ function RootNavigator() {
     );
   }
 
+  if (pendingPasswordReset) return <AuthStack />;
   if (!session) return <AuthStack />;
   if (user && !user.setup_complete) return <SetupNavigator />;
   if (needsOtp) return <OtpReauthScreen onVerified={() => setOtpRefreshKey(k => k + 1)} />;

@@ -3,7 +3,6 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator,
   Alert, Switch, Linking,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 
@@ -11,11 +10,10 @@ import * as Notifications from 'expo-notifications';
 import { Colors } from '../constants/colors';
 import Button from '../components/Button';
 import SectionLabel from '../components/SectionLabel';
-import { StorageKeys } from '../constants/storage';
 import { useAuthStore } from '../store/authStore';
-import { useAppStore } from '../store/appStore';
 import { useCollectionStore } from '../store/collectionStore';
 import { authService } from '../services/authService';
+import { plantService } from '../services/plantService';
 import { cacheService } from '../services/cacheService';
 import { supabase } from '../services/supabase';
 import type { ProfileStackParamList } from '../types';
@@ -42,35 +40,21 @@ export default function ProfileScreen({ navigation }: Props) {
   );
   const [savingNotification, setSavingNotification] = useState(false);
 
-  const [lastSyncDate, setLastSyncDate] = useState<Date | null>(null);
-  const [loadingSync, setLoadingSync] = useState(true);
+  const [remindersCount, setRemindersCount] = useState(0);
 
   const discoveredCount = plants.filter((p) => !p.is_deleted).length;
   const favoritesCount = plants.filter((p) => p.is_favorite && !p.is_deleted).length;
-  const remindersCount = 0;
-
-  const offlineMode = useAppStore((s) => s.isOffline);
-  const setOffline = useAppStore((s) => s.setOffline);
-  const [cacheSize, setCacheSize] = useState('');
 
   useEffect(() => {
-    (async () => {
-      if (!user) return;
-      try {
-        const date = await cacheService.getLastSyncDate(user.id);
-        setLastSyncDate(date);
-      } catch {
-        // ignore
-      } finally {
-        setLoadingSync(false);
-      }
-    })();
+    if (!user) return;
+    supabase
+      .from('reminders')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .then(({ count }) => setRemindersCount(count ?? 0))
+      .catch(() => {});
   }, [user]);
-
-  const handleToggleOffline = (value: boolean) => {
-    setOffline(value);
-    AsyncStorage.setItem(StorageKeys.OFFLINE_MODE, String(value));
-  };
 
   const handleToggleNotifications = async (value: boolean) => {
     if (!user) return;
@@ -114,17 +98,6 @@ export default function ProfileScreen({ navigation }: Props) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log Out', style: 'destructive', onPress: performLogout },
     ]);
-  };
-
-  const formatSyncTime = (date: Date | null): string => {
-    if (!date) return 'Never synced';
-    const diffMs = Date.now() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'Synced just now';
-    if (diffMins < 60) return `Synced ${diffMins} min ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `Synced ${diffHours}h ago`;
-    return `Synced ${date.toLocaleDateString()}`;
   };
 
   if (!user) {
@@ -214,23 +187,6 @@ export default function ProfileScreen({ navigation }: Props) {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.settingRow}>
-              <View style={[styles.iconChip, { backgroundColor: Colors.green100 }]}>
-                <Feather name="wifi-off" size={16} color={Colors.green700} />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Offline mode</Text>
-                <Text style={styles.settingSubtext}>
-                  {loadingSync ? '' : formatSyncTime(lastSyncDate)}{cacheSize ? ` · ${cacheSize}` : ''}
-                </Text>
-              </View>
-              <Switch
-                value={offlineMode}
-                onValueChange={handleToggleOffline}
-                trackColor={{ false: Colors.stone, true: Colors.green300 }}
-                thumbColor={offlineMode ? Colors.green700 : Colors.card}
-              />
-            </View>
           </View>
         </View>
 
@@ -249,6 +205,85 @@ export default function ProfileScreen({ navigation }: Props) {
               <Feather name="chevron-right" size={18} color={Colors.bark} />
             </TouchableOpacity>
 
+            <View style={styles.settingRow}>
+              <View style={[styles.iconChip, { backgroundColor: Colors.errorBg }]}>
+                <Feather name="trash-2" size={16} color={Colors.error} />
+              </View>
+              <TouchableOpacity
+                style={styles.dangerButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Erase Plant Data',
+                    'This will permanently remove all your plant discoveries and reminders. Your account will remain active.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Erase',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            const { data: userPlants } = await supabase
+                              .from('user_plants')
+                              .select('id')
+                              .eq('user_id', user!.id);
+                            if (userPlants) {
+                              for (const up of userPlants) {
+                                await plantService.softDeleteUserPlant(up.id);
+                              }
+                            }
+                            useCollectionStore.getState().setPlants([]);
+                            Alert.alert('Done', 'Your plant data has been erased.');
+                          } catch {
+                            Alert.alert('Error', 'Failed to erase plant data.');
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dangerButtonText}>Erase Plant Data</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.iconChip, { backgroundColor: Colors.errorBg }]}>
+                <Feather name="user-x" size={16} color={Colors.error} />
+              </View>
+              <TouchableOpacity
+                style={styles.dangerButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete Account',
+                    'This will permanently delete your account and all associated data. This action cannot be undone.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await supabase.rpc('delete_user');
+                          } catch {}
+                          await authService.logout();
+                          useAuthStore.getState().clearAuth();
+                        },
+                      },
+                    ],
+                  );
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dangerButtonText}>Delete Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <SectionLabel label="Log Out" />
+          <View style={styles.sectionCard}>
             <TouchableOpacity
               style={[styles.settingRow, { borderBottomWidth: 0 }]}
               onPress={handleLogout}
@@ -434,5 +469,14 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 20,
     lineHeight: 17,
+  },
+  dangerButton: {
+    flex: 1,
+    paddingVertical: 4,
+  },
+  dangerButtonText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 13,
+    color: Colors.error,
   },
 });

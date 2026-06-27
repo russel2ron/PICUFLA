@@ -10,6 +10,7 @@ import { Colors } from '../constants/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import { authService } from '../services/authService';
+import { useAuthStore } from '../store/authStore';
 import type { RootStackParamList } from '../types';
 
 type Props = {
@@ -21,7 +22,6 @@ export default function ChangePasswordScreen({ navigation }: Props) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDone, setIsDone] = useState(false);
 
   const handleChangePassword = async () => {
     Keyboard.dismiss();
@@ -51,34 +51,15 @@ export default function ChangePasswordScreen({ navigation }: Props) {
     setIsSubmitting(true);
     try {
       await authService.changePassword(password);
-      setIsDone(true);
+      useAuthStore.getState().setPendingPasswordReset(false);
       await authService.logout();
-      navigation.replace('EmailLogin');
+      useAuthStore.getState().clearAuth();
     } catch (e: any) {
       setError(e.message || 'Could not change password.');
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  if (isDone) {
-    return (
-      <AuthLayout>
-        <View style={styles.doneContent}>
-          <View style={styles.iconCircle}>
-            <Feather name="check" size={32} color={Colors.green700} />
-          </View>
-          <Text style={styles.title}>Password Changed</Text>
-          <Text style={styles.body}>Your password has been updated. Sign in with your new password.</Text>
-          <Button
-            title="Sign In"
-            onPress={() => navigation.replace('EmailLogin')}
-            style={{ width: '100%' }}
-          />
-        </View>
-      </AuthLayout>
-    );
-  }
 
   return (
     <AuthLayout>
@@ -145,13 +126,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
   },
-  doneContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
-  },
   backButton: {
     width: 40,
     height: 40,
@@ -180,13 +154,6 @@ const styles = StyleSheet.create({
     color: Colors.textOnDark,
     lineHeight: 22,
     marginBottom: 32,
-  },
-  body: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 14,
-    color: Colors.textOnDark,
-    textAlign: 'center',
-    lineHeight: 20,
   },
   form: {
     gap: 16,

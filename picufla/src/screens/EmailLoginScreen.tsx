@@ -216,9 +216,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   forgotLinkText: {
-    fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    color: Colors.green300,
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 14,
+    color: Colors.green400,
+    textDecorationLine: 'underline',
   },
   submitButtonSpacing: {
     marginTop: 8,
@@ -232,6 +233,7 @@ const styles = StyleSheet.create({
   },
   switchLinkBold: {
     fontFamily: 'DMSans_600SemiBold',
-    color: Colors.green300,
+    color: Colors.green400,
+    textDecorationLine: 'underline',
   },
 });

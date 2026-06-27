@@ -8,6 +8,7 @@ interface CollectionState {
   sortOrder: 'newest' | 'oldest' | 'a-z' | 'z-a';
   filterTag: string | null;
   setPlants: (plants: UserPlant[]) => void;
+  addPlant: (plant: UserPlant) => void;
   setLoading: (loading: boolean) => void;
   setSearchQuery: (query: string) => void;
   setSortOrder: (order: 'newest' | 'oldest' | 'a-z' | 'z-a') => void;
@@ -22,6 +23,7 @@ export const useCollectionStore = create<CollectionState>((set) => ({
   filterTag: null,
 
   setPlants: (plants) => set({ plants }),
+  addPlant: (plant) => set((state) => ({ plants: [plant, ...state.plants] })),
   setLoading: (isLoading) => set({ isLoading }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setSortOrder: (sortOrder) => set({ sortOrder }),

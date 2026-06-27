@@ -77,6 +77,7 @@ export interface PlantAlternative {
 }
 
 export interface IdentificationResult {
+  identified: boolean;
   common_name: string;
   scientific_name: string;
   confidence_score: number;

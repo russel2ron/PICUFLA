@@ -60,10 +60,10 @@ function ProfileStackScreen() {
   );
 }
 
-function TabIcon({ name, focused }: { name: string; focused: boolean }) {
+function TabIcon({ name, focused, size = 24 }: { name: string; focused: boolean; size?: number }) {
   return (
     <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-      <Feather name={name as any} size={22} color={focused ? Colors.tabActive : Colors.tabInactive} />
+      <Feather name={name as any} size={size} color={focused ? Colors.tabActive : Colors.tabInactive} />
     </View>
   );
 }
@@ -76,14 +76,15 @@ export default function AppTabs() {
         tabBarStyle: {
           backgroundColor: Colors.tabBg,
           borderTopColor: Colors.stone + '80',
-          height: 70,
+          height: 75,
           paddingTop: 10,
+          paddingBottom: 6,
         },
         tabBarActiveTintColor: Colors.tabActive,
         tabBarInactiveTintColor: Colors.tabInactive,
         tabBarLabelStyle: {
-          fontFamily: 'DMSans_400Regular',
-          fontSize: 10,
+          fontFamily: 'DMSans_500Medium',
+          fontSize: 12,
           letterSpacing: 0.02,
         },
       }}
@@ -101,7 +102,12 @@ export default function AppTabs() {
         component={ScanStackScreen}
         options={{
           tabBarLabel: 'Scan',
-          tabBarIcon: ({ focused }) => <TabIcon name="aperture" focused={focused} />,
+          tabBarLabelStyle: {
+            fontFamily: 'DMSans_600SemiBold',
+            fontSize: 13,
+            letterSpacing: 0.02,
+          },
+          tabBarIcon: ({ focused }) => <TabIcon name="aperture" focused={focused} size={28} />,
         }}
       />
       <Tab.Screen

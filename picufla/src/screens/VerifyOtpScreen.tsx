@@ -10,6 +10,7 @@ import { Colors } from '../constants/colors';
 import { StorageKeys } from '../constants/storage';
 import Button from '../components/Button';
 import { authService } from '../services/authService';
+import { useAuthStore } from '../store/authStore';
 import type { RootStackParamList } from '../types';
 
 const RESEND_KEY = StorageKeys.OTP_RESEND;
@@ -148,7 +149,7 @@ export default function VerifyOtpScreen({ route, navigation }: Props) {
       await AsyncStorage.removeItem(RESEND_KEY);
       setIsProcessing(true);
       if (purpose === 'password_reset') {
-        await authService.logout();
+        useAuthStore.getState().setPendingPasswordReset(true);
         navigation.replace('ChangePassword');
       } else if (purpose === 'signup') {
         navigation.replace('SetupProfile');
@@ -300,8 +301,8 @@ const styles = StyleSheet.create({
   },
   wrongEmailText: {
     fontFamily: 'DMSans_500Medium',
-    fontSize: 13,
-    color: Colors.green300,
+    fontSize: 14,
+    color: Colors.green400,
     textDecorationLine: 'underline',
   },
   otpInput: {

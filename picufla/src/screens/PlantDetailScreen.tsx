@@ -36,6 +36,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
   const [savingTag, setSavingTag] = useState(false);
 
   const tagInputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   const fetchPlant = useCallback(async () => {
     try {
@@ -79,6 +80,7 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
     setSavingNotes(true);
     try {
       await plantService.updateNotes(plant.id, notes);
+      setPlant((prev) => prev ? { ...prev, notes, notes_updated_at: new Date().toISOString() } : prev);
       setNotesEditing(false);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to save notes.');
@@ -194,10 +196,10 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-      <ScrollView bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.heroSection}>
           {plant.captured_image_url ? (
             <Image source={{ uri: plant.captured_image_url }} style={styles.heroImage} />
@@ -335,7 +337,10 @@ export default function PlantDetailScreen({ navigation, route }: Props) {
                 style={styles.addTagChip}
                 onPress={() => {
                   setAddingTag(true);
-                  setTimeout(() => tagInputRef.current?.focus(), 100);
+                  setTimeout(() => {
+                    tagInputRef.current?.focus();
+                    scrollRef.current?.scrollToEnd({ animated: true });
+                  }, 100);
                 }}
                 activeOpacity={0.7}
               >

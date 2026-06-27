@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
-  Animated, PanResponder, Dimensions, ActivityIndicator,
+  Animated, PanResponder, Dimensions, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -11,6 +11,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import SectionLabel from '../components/SectionLabel';
 import { useAuthStore } from '../store/authStore';
+import { useCollectionStore } from '../store/collectionStore';
 import { identificationService } from '../services/identificationService';
 import { plantService } from '../services/plantService';
 import { getErrorMessage } from '../utils/errorHandler';
@@ -66,9 +67,7 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
     })
   ).current;
 
-  const identified = (result as any).identified !== undefined
-    ? (result as any).identified
-    : result.scientific_name.length > 0;
+  const identified = result.identified;
 
   const activeResult = selectedAlternative
     ? {
@@ -145,6 +144,36 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
         notes: notes.trim() || null,
       });
 
+      useCollectionStore.getState().addPlant({
+        id: newId,
+        plant_id: plantId,
+        user_id: user.id,
+        discovered_at: new Date().toISOString(),
+        location_lat: locationLat,
+        location_lng: locationLng,
+        location_label: locationLabel,
+        confidence_score: activeResult.confidence_score,
+        captured_image_url: capturedImageUrl,
+        notes: notes.trim() || null,
+        notes_updated_at: null,
+        is_favorite: false,
+        tags: [],
+        is_deleted: false,
+        plant: {
+          id: plantId,
+          common_name: activeResult.common_name,
+          scientific_name: activeResult.scientific_name,
+          description: activeResult.description,
+          origin: activeResult.origin,
+          care_watering: activeResult.care_watering,
+          care_sunlight: activeResult.care_sunlight,
+          care_soil: activeResult.care_soil,
+          uses: activeResult.uses,
+          image_url: '',
+          created_at: new Date().toISOString(),
+        },
+      });
+
       navigation.reset({ index: 0, routes: [{ name: 'Scan' }] });
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error));
@@ -180,7 +209,12 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
       )}
 
       {identified && (
-        <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} bounces={false}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+        <ScrollView style={styles.detailsScroll} contentContainerStyle={styles.detailsContent} bounces={false} keyboardShouldPersistTaps="handled">
           <View style={styles.dragHandle} {...panResponder.panHandlers}>
             <View style={styles.dragOval} />
           </View>
@@ -279,16 +313,7 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             <Text style={styles.locationText}>{displayLocation || 'Location not recorded'}</Text>
           </View>
         </ScrollView>
-      )}
 
-      {isSaving && (
-        <View style={styles.savingOverlay}>
-          <ActivityIndicator size="large" color={Colors.textOnDark} />
-          <Text style={styles.savingText}>Saving to collection…</Text>
-        </View>
-      )}
-
-      {identified && (
         <View style={styles.bottomButtons}>
           <Button
             title="Retake"
@@ -303,6 +328,14 @@ export default function IdentificationResultScreen({ navigation, route }: Props)
             disabled={!!(activeResult.confidence_score < 0.6 && result.alternatives && result.alternatives.length > 0 && !selectedAlternative)}
             style={styles.bottomBtnHalf}
           />
+        </View>
+        </KeyboardAvoidingView>
+      )}
+
+      {isSaving && (
+        <View style={styles.savingOverlay}>
+          <ActivityIndicator size="large" color={Colors.textOnDark} />
+          <Text style={styles.savingText}>Saving to collection…</Text>
         </View>
       )}
     </View>
@@ -568,7 +601,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   bottomBtnHalf: {
-    width: 140,
+    flex: 1,
   },
   tagPillsScroll: {
     marginBottom: 20,

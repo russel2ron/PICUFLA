@@ -42,12 +42,12 @@ const styles = StyleSheet.create({
   logoCorner: {
     position: 'absolute',
     top: 56,
-    right: 16,
+    right: 8,
     zIndex: 10,
   },
   logoCornerImage: {
-    width: 120,
-    height: 44,
+    width: 145,
+    height: 54,
   },
   content: {
     flex: 1,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AuthLayout from '../components/AuthLayout';
 import { Colors } from '../constants/colors';
@@ -24,35 +24,37 @@ export default function LoginScreen({ navigation }: Props) {
   }, []);
 
   return (
-    <AuthLayout>
+    <AuthLayout logoPosition="none">
       <View style={styles.contentWrapper}>
-        <Animated.View style={{ opacity: titleFade, alignItems: 'center', marginTop: 100 }}>
-          <Text style={styles.greeting}>Welcome to</Text>
+        <Animated.View style={[styles.topSection, { opacity: titleFade }]}>
+          <Image source={require('../../assets/LOGO.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.appName}>PICUFLA</Text>
         </Animated.View>
 
-        <Animated.Text style={[styles.tagline, { opacity: taglineFade }]}>
-          Discover & collect every plant around you.
-        </Animated.Text>
+        <View style={styles.bottomSection}>
+          <Animated.Text style={[styles.tagline, { opacity: taglineFade }]}>
+            Discover & collect every plant around you.
+          </Animated.Text>
 
-        <Animated.View style={{ opacity: cardFade }}>
-          <Button
-            title="Get Started"
-            onPress={() => navigation.navigate('EmailRegister')}
-          />
+          <Animated.View style={{ opacity: cardFade }}>
+            <Button
+              title="Get Started"
+              onPress={() => navigation.navigate('EmailRegister')}
+            />
 
-          <Text style={styles.loginLink}>
-            Already have an account?{' '}
-            <Text style={styles.loginLinkBold} onPress={() => navigation.navigate('EmailLogin')}>
-              Log In
+            <Text style={styles.loginLink}>
+              Already have an account?{' '}
+              <Text style={styles.loginLinkBold} onPress={() => navigation.navigate('EmailLogin')}>
+                Log In
+              </Text>
             </Text>
-          </Text>
-        </Animated.View>
+          </Animated.View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            By continuing, you agree to our Privacy Policy and DPA
-          </Text>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              By continuing, you agree to our Privacy Policy
+            </Text>
+          </View>
         </View>
       </View>
     </AuthLayout>
@@ -62,39 +64,46 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   contentWrapper: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 48,
   },
-  greeting: {
-    fontFamily: 'DMSans_400Regular',
-    fontSize: 16,
-    color: Colors.textOnDark,
+  topSection: {
+    alignItems: 'center',
+    marginTop: 80,
+  },
+  logo: {
+    width: 500,
+    height: 183,
+    marginBottom: 8,
   },
   appName: {
     fontFamily: 'DMSerifDisplay_400Regular',
     fontSize: 36,
     color: Colors.textOnDark,
   },
+  bottomSection: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 20,
+  },
   tagline: {
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
     color: Colors.textOnDark,
     textAlign: 'center',
-    marginTop: 10,
     paddingHorizontal: 40,
     marginBottom: 32,
   },
   loginLink: {
     fontFamily: 'DMSans_400Regular',
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.textOnDark,
     textAlign: 'center',
     marginTop: 24,
   },
   loginLinkBold: {
     fontFamily: 'DMSans_600SemiBold',
-    color: Colors.green300,
+    color: Colors.green400,
+    textDecorationLine: 'underline',
   },
   footer: {
     paddingVertical: 16,

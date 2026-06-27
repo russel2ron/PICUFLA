@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList, Image,
+  View, Text, TouchableOpacity, StyleSheet, FlatList, Image, SafeAreaView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -84,7 +84,7 @@ export default function FavoritesScreen({ navigation }: Props) {
   const keyExtractor = useCallback((item: UserPlant) => item.id, []);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
           <Feather name="arrow-left" size={20} color={Colors.soil} />
@@ -109,7 +109,7 @@ export default function FavoritesScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
     paddingBottom: 16,
   },
   backButton: {

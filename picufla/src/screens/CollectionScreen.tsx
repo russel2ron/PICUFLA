@@ -5,12 +5,9 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
-import NetInfo from '@react-native-community/netinfo';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
 import { useAuthStore } from '../store/authStore';
-import { useAppStore } from '../store/appStore';
-import OfflineBanner from '../components/OfflineBanner';
 import LoadingScreen from '../components/LoadingScreen';
 import EmptyState from '../components/EmptyState';
 import { useCollectionStore, getFilteredPlants } from '../store/collectionStore';
@@ -37,8 +34,6 @@ export default function CollectionScreen({ navigation }: Props) {
     setPlants, setLoading, setSearchQuery, setSortOrder, setFilterTag,
   } = useCollectionStore();
 
-  const [offline, setOffline] = useState(false);
-  const [lastSync, setLastSync] = React.useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const filteredPlants = useMemo(
@@ -50,26 +45,13 @@ export default function CollectionScreen({ navigation }: Props) {
     if (!user) return;
     setLoading(true);
     try {
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        setOffline(true);
-        const cached = await cacheService.getPlants(user.id);
-        setPlants(cached);
-        const syncDate = await cacheService.getLastSyncDate(user.id);
-        setLastSync(syncDate);
-        return;
-      }
-      setOffline(false);
       const data = await plantService.getUserPlants(user.id);
       setPlants(data);
       await cacheService.savePlants(user.id, data);
-      setLastSync(new Date());
     } catch {
       const cached = await cacheService.getPlants(user.id);
       if (cached.length > 0) {
         setPlants(cached);
-        const syncDate = await cacheService.getLastSyncDate(user.id);
-        setLastSync(syncDate);
       }
     } finally {
       setLoading(false);
@@ -240,8 +222,6 @@ export default function CollectionScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <OfflineBanner visible={offline} lastSynced={lastSync} />
-
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.headerTitleRow}>

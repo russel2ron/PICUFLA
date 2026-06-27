@@ -543,6 +543,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     borderRadius: 12,
     overflow: 'hidden',
+    padding: 12,
+    alignItems: 'center',
   },
   dateTimeRow: {
     flexDirection: 'row',
